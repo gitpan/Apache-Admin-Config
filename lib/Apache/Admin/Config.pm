@@ -4,7 +4,7 @@ use 5.005;
 use strict;
 use FileHandle;
 
-$Apache::Admin::Config::VERSION = '0.55';
+$Apache::Admin::Config::VERSION = '0.56';
 $Apache::Admin::Config::DEBUG   = 0;
 
 =pod
@@ -1090,7 +1090,7 @@ sub _get_index
     my @pchildren = @{$self->{parent}->{children}};
     for(my $i = 0; $i < @pchildren; $i++)
     {
-        return $i if $pchildren[$i] eq $self;
+        return $i if overload::StrVal($pchildren[$i]) eq overload::StrVal($self);
     }
 }
 
