@@ -5,7 +5,7 @@ BEGIN
     use 5.005;
     use strict;
 
-    $Apache::Admin::Config::VERSION = '0.02';
+    $Apache::Admin::Config::VERSION = '0.03';
     $Apache::Admin::Config::DEBUG   = 0;
 }
 
@@ -370,7 +370,7 @@ sub directive
                 my $index;
                 for(my $i = @directives - 1; $i >= 0; $i--)
                 {
-                    if($root->[$i]->[0] eq $self->{value})
+                    if($root->{$directive}->[$i]->[0] eq $value)
                     {
                         $index = $i;
                         last;
@@ -558,6 +558,9 @@ Copyright (C) 2001 - Olivier Poitrey
 =head1 HISTORY
 
 $Log: Config.pm,v $
+Revision 1.8  2001/08/16 23:07:04  rs
+fix a bug in directive methode.
+
 Revision 1.7  2001/08/15 23:48:33  rs
 Fix a major bug that cause "syntaxe error" on directives that haven't values
 like "clearmodulelist"

@@ -1,4 +1,4 @@
-Apache::Admin::Config version 0.02
+Apache::Admin::Config version 0.03
 =========================
 
 INSTALLATION
@@ -121,6 +121,9 @@ COPYRIGHT
 
 HISTORY
     $Log: README,v $
+    Revision 1.5  2001/08/16 23:08:39  rs
+    update infos for version 0.03
+
     Revision 1.4  2001/08/15 23:58:25  rs
     changes for 0.02
 

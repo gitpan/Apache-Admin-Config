@@ -1,5 +1,8 @@
 Revision history for Perl extension Apache::Admin::Config.
 
+0.03  Fri Aug 17 01:07:17 2001
+        - Fix a major bug in directive methode.
+
 0.02  Thu Aug 16 01:48:54 2001
         - Put module on CPAN
         - Fix a very major bug that cause "syntax error" from parser on directives with
