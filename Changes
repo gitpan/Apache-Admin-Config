@@ -1,6 +1,11 @@
 Revision history for Perl extension Apache::Admin::Config.
 
-0.20 Mon Jun  3 11:03:05 2002
+0.21 Mon Jun 3 16:39:41 2002
+        - Major bugfix: correction of the behavior of the parameters
+          '-ontop', '-onbottom', '-after' and '-before' in methods 
+          'add_directive' and 'add_section'.
+
+0.20 Mon Jun 3 11:03:05 2002
         - Many major bugfix
         - Algorithm rewriten, it's 65 times faster !
 

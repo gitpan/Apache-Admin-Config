@@ -7,7 +7,7 @@ BEGIN
     use FileHandle;
     use overload nomethod => \&to_string;
 
-    $Apache::Admin::Config::VERSION = '0.20';
+    $Apache::Admin::Config::VERSION = '0.21';
     $Apache::Admin::Config::DEBUG   = 0;
 }
 
@@ -190,7 +190,8 @@ sub new
     my $pkg  = shift;
     my $self = bless({}, ref($pkg) || $pkg);
 
-    $self->{oldapi} = _get_arg(\@_, '-oldapi');
+    $self->{oldapi} = _get_arg(\@_, '-oldapi!');
+    $self->{indent} = _get_arg(\@_, '-indent!');
     
     $self->{htaccess} = $htaccess = shift;
 
@@ -279,7 +280,17 @@ sub write_section
     my $self  = shift;
     my $name  = shift;
     my $value = shift;
-    return("<$name $value>");
+    my $indent = '';
+    if($self->{top}->{indent})
+    {
+        my $root  = $self;
+        while($root->type ne 'top')
+        {
+            $root = $root->parent;
+            $indent .= '    ';
+        }
+    }
+    return("$indent<$name $value>");
 }
 
 sub write_section_closing
@@ -288,7 +299,17 @@ sub write_section_closing
     # take 1 argument (directive name) and return string
     my $self = shift;
     my $name = shift;
-    return("</$name>");
+    my $indent = '';
+    if($self->{top}->{indent})
+    {
+        my $root  = $self;
+        while($root->type ne 'top')
+        {
+            $root = $root->parent;
+            $indent .= '    ';
+        }
+    }
+    return("$indent</$name>");
 }
 
 =pod
@@ -348,26 +369,10 @@ sub add_section
     return($self->_set_error('method not allowed')) if($self->{type} eq 'directive');
     return($self->_set_error('too few arguments')) unless defined $section_name;
     $section_name = lc $section_name;
-    #my $typed_section = _type($section, 'section');
 
-    #return($self->_set_error('can\'t add section, it already exists'))
-    #  if(defined $root->{$typed_section} && defined $root->{$typed_section}->{$entry});
+    my $insert_line = $self->_get_insert_line($type, $target);
+    return unless defined $insert_line;
 
-    my $insert_line;
-    $type = defined $type ? $type : '-onbottom'; # default behavior
-    if(($type eq '-before' || $type eq '-after')
-        && defined $target && ref $target && $target->isa(Apache::Admin::Config)
-        && $target->isin($self))
-    {
-        $insert_line = $type eq '-before' ? $target->first_line : $target->last_line + 1;
-    }
-    else
-    {
-        $insert_line = $type eq '-ontop' || $type eq '-after' ? $self->first_line : 
-            # in sections, last line return the closer, and we want live one line before it
-            ($self->type eq 'top' ? $self->last_line + 1 : $self->last_line + 0);
-    }
-    
     my $which = $self->_get_section_before_line($section_name, $insert_line);
     
     $self->_insert_line
@@ -567,7 +572,7 @@ sub section
             my @sections = _get_sections($root);
             if(defined $sections[$which])
             {
-                my($sec_tag, $sec_val) = $sections[$which];
+                my($sec_tag, $sec_val) = @{$sections[$which]};
                 my $sec_name = _untype($sec_tag, 'section');
                 my $sub = bless({});
                 $sub->{level}     = sprintf(q(%s->{'%s'}), $self->{level}, $sec_tag);
@@ -593,7 +598,17 @@ sub write_directive
     my($self, $name, $value) = @_;
     return undef unless defined $name;
     $value = defined $value ? $value : '';
-    return("$name $value");
+    my $indent = '';
+    if($self->{top}->{indent})
+    {
+        my $root  = $self;
+        while($root->type ne 'top')
+        {
+            $root = $root->parent;
+            $indent .= '    ';
+        }
+    }
+    return("$indent$name $value");
 }
 
 =pod
@@ -654,18 +669,8 @@ sub add_directive
     $directive = lc $directive if(defined $directive);
     return($self->_set_error('to few arguments')) unless defined $directive;
     
-    my $insert_line;
-    $type = defined $type ? $type : '-onbottom'; # default behavior
-    if(($type eq '-before' || $type eq '-after') 
-        && defined $target && ref $target && $target->isa(Apache::Admin::Config)
-        && $target->isin($self))
-    {
-        $insert_line = $type eq '-before' ? $target->first_line : $target->last_line + 1;
-    }
-    else
-    {
-        $insert_line = $type eq '-ontop' || $type eq '-after' ? $self->first_line : $self->last_line + 1;
-    }
+    my $insert_line = $self->_get_insert_line($type, $target);
+    return unless defined $insert_line;
 
     $self->_insert_line($insert_line, $self->write_directive($directive, $value));
     _insert_directive($self->_root, $directive, $value, [$insert_line == 0 ? $insert_line : $insert_line-1]);
@@ -1440,6 +1445,45 @@ sub _get_sections
         $_->[3] = $same{$_->[3]}++ || 0;
     }
     return @sections;
+}
+
+# determine the line number where to insert new line regarding of parameters
+sub _get_insert_line
+{
+    my($self, $type, $target) = @_;
+    my $insert_line;
+
+    $type = defined $type ? $type : '-onbottom'; # default behavior
+    if(($type eq '-before' || $type eq '-after') && defined $target)
+    {
+        return $self->_set_error("target `$target' isn\'t an object")
+            unless ref $target && $target->isa(Apache::Admin::Config);
+        return $self->_set_error('invalid target context')
+            unless $target->isin($self);
+    }
+
+    if($type eq '-before')
+    {
+        $insert_line = $target->first_line;
+    }
+    elsif($type eq '-after')
+    {
+        $insert_line = $target->last_line + 1;
+    }
+    elsif($type eq '-ontop')
+    {
+        $insert_line = $self->type eq 'top' ? $self->first_line : $self->first_line + 1;
+    }
+    elsif($type eq '-onbottom' || $type eq '')
+    {
+        $insert_line = $self->type eq 'top' ? $self->last_line + 1 : $self->last_line;
+    }
+    else
+    {
+        return $self->_set_error('malformed arguments');
+    }
+
+    return $insert_line;
 }
 
 sub _parse
