@@ -1,3 +1,10 @@
+2004-12-08  Olivier Poitrey  <rs@rhapsodyk.net>
+
+	* Release 0.92
+
+	* Fix CPAN case #8782: destroy() method doesn't a true value on
+          succesfully deleting empty sections
+
 2003-01-25  Olivier Poitrey  <rs@rhapsodyk.net>
 
 	* Release 0.91

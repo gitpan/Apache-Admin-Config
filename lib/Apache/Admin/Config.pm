@@ -4,7 +4,7 @@ use 5.005;
 use strict;
 use FileHandle;
 
-$Apache::Admin::Config::VERSION = '0.91';
+$Apache::Admin::Config::VERSION = '0.92';
 $Apache::Admin::Config::DEBUG   = 0;
 
 =pod
@@ -1370,6 +1370,7 @@ sub destroy
     {
         $_->destroy;
     }
+    return 1;
 }
 
 =pod

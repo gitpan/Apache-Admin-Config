@@ -18,3 +18,4 @@ t/section_delete.t
 t/section_insert.t
 t/save.t
 t/value.t
+META.yml                                 Module meta-data (added by MakeMaker)
