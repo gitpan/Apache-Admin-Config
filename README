@@ -1,4 +1,4 @@
-Apache::Admin::Config version 0.04
+Apache::Admin::Config version 0.05
 =========================
 
 INSTALLATION
@@ -11,6 +11,9 @@ To install this module type the following:
    make install
 
 CHANGES
+
+0.05  Sat Aug 18 14:39:45 2001
+        - Bug fix, $master value was undefined in value method, so value wasn't work at all
 
 0.04  Fri Aug 17 01:42:16 2001
         - Fix a minor bug in directive method.
@@ -137,6 +140,9 @@ COPYRIGHT
 
 HISTORY
     $Log: README,v $
+    Revision 1.8  2001/08/18 12:43:00  rs
+    conflict merged
+
     Revision 1.7  2001/08/17 08:53:22  rs
     integration of Changes in README
 

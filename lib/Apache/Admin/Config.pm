@@ -5,7 +5,7 @@ BEGIN
     use 5.005;
     use strict;
 
-    $Apache::Admin::Config::VERSION = '0.04';
+    $Apache::Admin::Config::VERSION = '0.05';
     $Apache::Admin::Config::DEBUG   = 0;
 }
 
@@ -83,6 +83,10 @@ sub new
     {
         return $self->_set_error('htaccess not readable') unless(-r _);
         $self->_load || return undef;
+    }
+    else
+    {
+        $self->_init || return undef;
     }
     
     return($self);
@@ -170,6 +174,8 @@ sub value
 {
     my $self     = shift;
     my $newvalue = shift;
+    my $master   = $self->{master};
+    my $root     = $self->_root or return undef;
     
     if($self->{type} eq 'section')
     {
@@ -181,7 +187,7 @@ sub value
             my $length = $lines->[$i++]->[-1] - $offset + 1; # last section section opener tag's line (often the same as first)
             # if the line was truncated, we replace it by a single line
             $offset -= $trunc;
-            splice(@{$master->{contents_raw}}, $offset, $length, $self->write_section($self->{name}, $self->{value}));
+            splice(@{$master->{contents_raw}}, $offset, $length, $self->write_section($self->{name}, $newvalue));
             $trunc += $lenfth - 1; # if line taken more than one line, keep trace of remainder
         }
     }
@@ -189,7 +195,7 @@ sub value
     {
         my $offset = $root->[1]->[0];
         my $length = $root->[1]->[-1] - $offset + 1;
-        splice(@{$master->{contents_raw}}, $offset, $length, $self->write_directive($self->{name}, $self->{value}));
+        splice(@{$master->{contents_raw}}, $offset, $length, $self->write_directive($self->{name}, $newvalue));
     }
     else
     {
@@ -496,6 +502,13 @@ sub _parse
     return 1;
 }
 
+sub _init
+{
+    my $self = shift;
+    $self->{master}->{contents_raw} = [];
+    return $self->_parse;
+}
+
 sub _load
 {
     my $self = shift;
@@ -558,6 +571,22 @@ Copyright (C) 2001 - Olivier Poitrey
 =head1 HISTORY
 
 $Log: Config.pm,v $
+Revision 1.14  2001/08/18 13:38:25  rs
+fix major bug, if config file wasn't exist, module won't work
+
+Revision 1.13  2001/08/18 12:50:14  rs
+value method wasn't take the appropriate value for change it
+
+Revision 1.12  2001/08/18 12:46:15  rs
+$root value was not defined !
+
+Revision 1.11  2001/08/18 12:39:35  rs
+migrate to 0.05
+
+Revision 1.10  2001/08/18 12:39:15  rs
+bug fix in value method, $master wasn't defined, cause method to not work
+at all
+
 Revision 1.9  2001/08/16 23:41:59  rs
 fix bug in directive method :
 directive foo doesn't exists
