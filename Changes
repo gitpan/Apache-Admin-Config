@@ -1,5 +1,8 @@
 Revision history for Perl extension Apache::Admin::Config.
 
+0.53 Mon Jul 15 14:36:56 CEST 2002
+        - Bugfix in saveas method
+
 0.52 Mon Jul 15 14:01:11 CEST 2002
         - Correct a big memory leak problem (thanks to Scott Beck)
         - Misc bugfix

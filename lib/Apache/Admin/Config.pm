@@ -3,7 +3,7 @@ package Apache::Admin::Config;
 use 5.005;
 use strict;
 
-$Apache::Admin::Config::VERSION = '0.52';
+$Apache::Admin::Config::VERSION = '0.53';
 $Apache::Admin::Config::DEBUG   = 0;
 
 =pod
@@ -242,7 +242,7 @@ sub save
 {
     my($self, $saveas) = @_;
 
-    my $htaccess = defined $saveas ? $saveas : $self->{htaccess};
+    my $htaccess = defined $saveas ? $saveas : $self->{tree}->{htaccess};
 
     return $self->_set_error("you have to specify a location for writing configuration")
         unless defined $htaccess;
@@ -372,8 +372,6 @@ like $obj->select(-which=>0)->name.
 =back
 
 Method returns a list of object(s) founds.
-
-=back
 
 =cut
 
