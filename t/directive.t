@@ -1,6 +1,6 @@
 use strict;
 use Test;
-plan test => 5;
+plan test => 6;
 
 use Apache::Admin::Config;
 ok(1);
@@ -12,6 +12,9 @@ my @dirlist = $apache->directive;
 ok(@dirlist, 88);
 
 my @dirvals = $apache->directive('browsermatch');
+ok(@dirvals, 5);
+
+@dirvals = $apache->directive('BrowSerMatch');
 ok(@dirvals, 5);
 
 my $obj = $dirvals[0];

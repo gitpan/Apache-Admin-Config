@@ -1,6 +1,6 @@
 use strict;
 use Test;
-plan test => 6;
+plan test => 7;
 
 use Apache::Admin::Config;
 ok(1);
@@ -12,6 +12,9 @@ my @seclist = $apache->section;
 ok(@seclist, 6);
 
 my @secvals = $apache->section('directory');
+ok(@secvals, 4);
+
+@secvals = $apache->section('DirectorY');
 ok(@secvals, 4);
 
 my $obj = $secvals[0];

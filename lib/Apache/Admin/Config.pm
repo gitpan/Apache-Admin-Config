@@ -2,8 +2,9 @@ package Apache::Admin::Config;
 
 use 5.005;
 use strict;
+use FileHandle;
 
-$Apache::Admin::Config::VERSION = '0.53';
+$Apache::Admin::Config::VERSION = '0.54';
 $Apache::Admin::Config::DEBUG   = 0;
 
 =pod
@@ -300,7 +301,7 @@ sub new
     $self->{top}     = $self;
     $self->{type}    = 'section';
     $self->{parent}  = undef;
-    $self->{childs}  = [];
+    $self->{children}  = [];
    
     return($self);
 }
@@ -404,7 +405,7 @@ sub select
 
     $args{name} = lc $args{name} if defined $args{name};
 
-    my @childs = @{$self->{childs}};
+    my @children = @{$self->{children}};
 
     my $n = 0;
     my @items;
@@ -412,7 +413,7 @@ sub select
     my @field_to_test = 
         grep(defined $args{$_}, qw(type name value));
 
-    foreach my $item (@childs)
+    foreach my $item (@children)
     {
         my $match = 1;
         # for all given arguments, we test if it matched
@@ -777,7 +778,7 @@ sub delete
     my $index = $self->_get_index;
     if(defined $index)
     {
-        splice(@{$self->{parent}->{childs}}, $index, 1);
+        splice(@{$self->{parent}->{children}}, $index, 1);
         return 1;
     }
     return;
@@ -1005,7 +1006,7 @@ sub destroy
     my($self) = @_;
     delete $self->{top};
     delete $self->{parent};
-    foreach(@{$self->{childs}})
+    foreach(@{$self->{children}})
     {
         $_->destroy;
     }
@@ -1048,12 +1049,12 @@ sub _indent
 sub _get_index
 {
     my($self) = @_;
-    my @pchilds = @{$self->{parent}->{childs}};
-    for(my $i = 0; $i < @pchilds; $i++)
+    return unless defined $self->{parent}; # if called by top node
+    my @pchildren = @{$self->{parent}->{children}};
+    for(my $i = 0; $i < @pchildren; $i++)
     {
-        return $i if $pchilds[$i] eq $self;
+        return $i if $pchildren[$i] eq $self;
     }
-    return;
 }
 
 sub _deploy
@@ -1069,13 +1070,13 @@ sub _deploy
         {
             $_->{raw};
         }
-    } @{$_[0]->{childs}};
+    } @{$_[0]->{children}};
 }
 
 sub _count_lines
 {
     my $c = $_[0]->{'length'} || 0;
-    foreach my $i (@{$_[0]->{childs}})
+    foreach my $i (@{$_[0]->{children}})
     {
         return($c+1, 1) if(overload::StrVal($_[1]) eq overload::StrVal($i));
         my($rv, $found) = _count_lines($i, $_[1]);
@@ -1088,7 +1089,7 @@ sub _count_lines
 sub _count_lines_last
 {
     my $c = $_[0]->{'length'};
-    foreach my $i (@{$_[0]->{childs}})
+    foreach my $i (@{$_[0]->{children}})
     {
         $c += _count_lines($i, $_[1]);
         return $c if($_[1] eq $i);
@@ -1114,11 +1115,11 @@ sub _insert_directive
 
     if(defined $index && $index != -1)
     {
-        splice(@{$tree->{childs}}, $index, 0, $directive);
+        splice(@{$tree->{children}}, $index, 0, $directive);
     }
     else
     {
-        push(@{$tree->{childs}}, $directive);
+        push(@{$tree->{children}}, $directive);
     }
 
     return $directive;
@@ -1136,18 +1137,18 @@ sub _insert_section
     $section->{name} = lc($section_name);
     $section->{value} = $value;
     $section->{parent} = $tree;
-    $section->{childs} = [];
+    $section->{children} = [];
     $section->{top} = $tree->{top};
     $section->{raw} = $line;
     $section->{'length'} = $length;
 
     if(defined $index && $index != -1)
     {
-        splice(@{$tree->{childs}}, $index, 0, $section);
+        splice(@{$tree->{children}}, $index, 0, $section);
     }
     else
     {
-        push(@{$tree->{childs}}, $section);
+        push(@{$tree->{children}}, $section);
     }
 
     return $section;
@@ -1167,11 +1168,11 @@ sub _insert_comment
 
     if(defined $index && $index != -1)
     {
-        splice(@{$tree->{childs}}, $index, 0, $comment);
+        splice(@{$tree->{children}}, $index, 0, $comment);
     }
     else
     {
-        push(@{$tree->{childs}}, $comment);
+        push(@{$tree->{children}}, $comment);
     }
 
     return $comment;
@@ -1190,11 +1191,11 @@ sub _insert_blank
 
     if(defined $index && $index != -1)
     {
-        splice(@{$tree->{childs}}, $index, 0, $blank);
+        splice(@{$tree->{children}}, $index, 0, $blank);
     }
     else
     {
-        push(@{$tree->{childs}}, $blank);
+        push(@{$tree->{children}}, $blank);
     }
 
     return $blank;
@@ -1406,21 +1407,19 @@ http://www.rhapsodyk.net/cgi-bin/cvsweb/Apache-Admin-Config/
 
 =head1 LICENCE
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or (at
-your option) any later version.
+This library is free software; you can redistribute it and/or
+modify it under the terms of the GNU Lesser General Public
+License as published by the Free Software Foundation; either
+version 2.1 of the License, or (at your option) any later version.
 
-This program is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-General Public License for more details.
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+Lesser General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with the program; if not, write to the Free Software
-Foundation, Inc. :
-
-59 Temple Place, Suite 330, Boston, MA 02111-1307
+You should have received a copy of the GNU Lesser General Public
+License along with this library; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 =head1 COPYRIGHT
 

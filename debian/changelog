@@ -1,0 +1,9 @@
+libapache-admin-config-perl (0.54-1) unstable; urgency=low
+
+  * Initial Release.
+
+ -- Olivier Poitrey <rs@rhapsodyk.net>  Mon,  5 Aug 2002 11:21:24 +0200
+
+Local variables:
+mode: debian-changelog
+End:

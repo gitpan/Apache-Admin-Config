@@ -1,5 +1,9 @@
 Revision history for Perl extension Apache::Admin::Config.
 
+O.54 Sun Aug  4 15:59:57 CEST 2002
+        - Major bugfix in save method (thanks to Szilveszter Farkas)
+        - internal variables rename
+
 0.53 Mon Jul 15 14:36:56 CEST 2002
         - Bugfix in saveas method
 
