@@ -1,5 +1,11 @@
 Revision history for Perl extension Apache::Admin::Config.
 
+0.06  Tue Sep 18 01:09:24 2001
+        - Make a quick and dirty documentation
+        - value() return the context value if no arguments given
+        - new() can be called without argument, save() need an argument in this
+          case
+
 0.05  Sat Aug 18 14:39:45 2001
         - Major bug fix, if config file wasn't exists, module won't work !
         - Bug fix, value method wasn't took the appropriate value for change it, resulted

@@ -5,7 +5,7 @@ BEGIN
     use 5.005;
     use strict;
 
-    $Apache::Admin::Config::VERSION = '0.05';
+    $Apache::Admin::Config::VERSION = '0.06';
     $Apache::Admin::Config::DEBUG   = 0;
 }
 
@@ -14,58 +14,72 @@ BEGIN
 
 =head1 NAME
 
-Apache::Admin::Config - A common module for manipulate Apache configurations files
+Apache::Admin::Config - A common module to manipulate Apache configuration files
 
 =head1 SYNOPSIS
 
     use Apache::Admin::Config;
 
-    my $apache_conf = new Apache::Admin::Config ("/path/to/config_file.conf")
+    my $obj = new Apache::Admin::Config ("/path/to/config_file.conf")
         || die $Apache::Admin::Config::ERROR;
 
-    # parsing contents
-    my @directives      = @{ $apache_conf->directive() || die $apache_conf->error };
-    my @sections        = @{ $apache_conf->section() || die $apache_conf->error };
-    my @file_sections   = @{ $apache_conf->section('file') || die $apache_conf->error };
+    # getting the full list of directives in current context die if error
+    my @directives_list = @{ $obj->directive || die $obj->error };
 
-    # parsing file section contents
-    my @file_directives = @{ $apache_conf->section(file=>$file_sections[0])->directive };
-    my @file_sections   = @{ $apache_conf->section(file=>$file_sections[0])->section };
+    # getting the full list of sections in current context or die if error
+    my @sections_list = @{ $obj->section || dit $obj->error };
 
-    # adding directive/section
-    $apache_conf->add_directive(Options=>'+Indexes');
-    $apache_conf->section(File=>'/some/file')->add_directive(Allow=>'from all');
 
-    $apache_conf->add_section(File=>'/some/file');
-    $apache_conf->section(VirtualHost=>'some.host')->add_section(File=>'/some/file');
+    # getting values' list of directive "Foo"
+    my @foo_directive_values = @{ $obj->directive('Foo') };
 
-    # change directive value
-    $apache_conf->directive(Options=>'+Indexes')->value('+Indexes -FollowSymlinks');
-    $apache_conf->section(File=>'/some/file')->directive(Allow=>'from all')->value('from 127.0.0.1');
+    # getting values' list of section "Foo"
+    my @foo_section_values = @{ $obj->section('Foo') };
     
-    $apache_conf->section(File=>'/some/file')->value('/some/other/file');
-    $apache_conf->section(VirtualHost=>'some.host')->section(File=>'/some/file')->value('/some/other/file');
 
-    # delete directive (the last one if more than one identicales)
-    $apache_conf->directive(Options=>'+Indexes')->delete;
-    $apache_conf->section(File=>'/some/file')->directive(Allow=>'from all')->delete;
+    # adding directive "Foo" with value "bar" in the current context
+    $obj->add_directive(Foo=>'bar');
+    # adding directive "Foo" with value "bar" in the section <VirtualHost test.com> 
+    # of current context
+    $obj->section(VirtualHost=>'test.com')->add_directive(Foo=>'bar');
 
-    $apache_conf->section(File=>'/some/file')->delete;
-    $apache_conf->section(VirtualHost=>'some.host')->section(File=>'/some/file')->delete;
+    # adding section "Foo" with value "bar" in the current context
+    $obj->add_section(Foo=>'bar');
+    # adding section "Foo" with value "bar" in the section <VirtualHost text.com>
+    # of current context (in two steps)
+    my $subsection = $obj->section(VirtualHost=>'test.com');
+    $subsection->add_section(Foo=>'bar');
 
-    # save changes
+    # change directive "Foo" with value "bar" to value "rab"
+    $obj->directive(Foo=>'bar')->value('rab');
+    # same in sub-section
+    $obj->section(VirtualHost=>'test.com')->directive(Foo=>'bar')->value('rab');
+    
+    # change section "Foo" with value "bar" to value "rab"
+    $obj->section(Foo=>'bar')->value('rab');
+
+    # delete directive "Foo bar" (the last one if serveral identicales)
+    $obj->directive(Foo=>'bar')->delete;
+
+    # delete section "<Foo bar>...</bar>" (all sections if dispatched several
+    # sections with same name/value)
+    $obj->section(Foo=>'bar')->delete;
+    
+    # save changes in the file
     $apache_conf->save;
+    # or in another file
     $apache_conf->save('/path/to/another/file.conf');
 
 =head1 DESCRIPTION
 
-under construction
+This module allows you to edit Apache configuration files without modifying
+comments, indentation, or truncated lines. 
 
 =head1 METHODES
 
-=head2 new
+=head2 new [/path/to/file]
 
-under construction
+Create or read, if given in argument, an apache like configuration file.
 
 =cut
 
@@ -73,13 +87,13 @@ sub new
 {
     my $pkg  = shift;
     my $self = bless({}, ref($pkg) || $pkg);
-    $self->{htaccess} = $htaccess = shift || return $self->_set_error('too few arguments');
+    $self->{htaccess} = $htaccess = shift;
 
     $self->{level}    = '';
     $self->{master}   = $self;
     $self->{type}     = 'master';
 
-    if(-f $htaccess)
+    if(defined $htaccess && -f $htaccess)
     {
         return $self->_set_error('htaccess not readable') unless(-r _);
         $self->_load || return undef;
@@ -94,9 +108,10 @@ sub new
 
 =pod
 
-=head2 save
+=head2 save [/path/to/file]
 
-under construction
+Write modifications to the configuration file. If a path to a file is given,
+save the modification to this file instead.
 
 =cut
 
@@ -108,6 +123,8 @@ sub save
 
     my $htaccess = defined $saveas ? $saveas : $self->{htaccess};
 
+    return $self->_set_error("you have to specify a location for writing configuration") unless defined $htaccess;
+
     open(HTACCESS, ">$htaccess") or return $self->_set_error('can\'t open htaccess file for read');
     foreach(@{$self->{master}->{contents_raw}})
     {
@@ -116,93 +133,6 @@ sub save
     close(HTACCESS);
 
     return 1;
-}
-
-=pod
-
-=head2 delete
-
-under construction
-
-=cut
-
-sub delete
-{
-    my $self   = shift;
-    my $root   = $self->_root || return undef;
-    my $master = $self->{master};
-    my $deleted= 0;
-
-    if($self->{type} eq 'section')
-    {
-        my $lines   = $root->{_pos};
-        for(my $i = 0; $i < @$lines; $i++)
-        {
-            my $offset = $lines->[$i]->[0]; # first section opener tag's line (for trucated line) 
-            my $length = $lines->[++$i]->[-1] - $offset + 1; # last section closer tag's line (for trucated line)
-            $offset -= $deleted;
-            splice(@{$master->{contents_raw}}, $offset, $length);
-            $deleted += $length;
-        }
-    }
-    elsif($self->{type} eq 'directive')
-    {
-        my $offset = $root->[1]->[0];
-        my $length = $root->[1]->[-1] - $offset + 1;
-        splice(@{$master->{contents_raw}}, $offset, $length);
-        $deleted = $length;
-    }
-    else
-    {
-        return($self->_set_error('methode not allowed'));
-    }
-
-    $self->_parse;
-    undef($_[0]);
-    return($deleted);
-}
-
-=pod
-
-=head2 value
-
-under construction
-
-=cut
-
-sub value
-{
-    my $self     = shift;
-    my $newvalue = shift;
-    my $master   = $self->{master};
-    my $root     = $self->_root or return undef;
-    
-    if($self->{type} eq 'section')
-    {
-        my $lines   = $root->{_pos};
-        my $trunc   = 0;
-        for(my $i = 0; $i < @$lines; $i++)
-        {
-            my $offset = $lines->[$i]->[0]; # first section opener tag's line 
-            my $length = $lines->[$i++]->[-1] - $offset + 1; # last section section opener tag's line (often the same as first)
-            # if the line was truncated, we replace it by a single line
-            $offset -= $trunc;
-            splice(@{$master->{contents_raw}}, $offset, $length, $self->write_section($self->{name}, $newvalue));
-            $trunc += $lenfth - 1; # if line taken more than one line, keep trace of remainder
-        }
-    }
-    elsif($self->{type} eq 'directive')
-    {
-        my $offset = $root->[1]->[0];
-        my $length = $root->[1]->[-1] - $offset + 1;
-        splice(@{$master->{contents_raw}}, $offset, $length, $self->write_directive($self->{name}, $newvalue));
-    }
-    else
-    {
-        return($self->_set_error('methode not allowed'));
-    }
-
-    $self->_parse;
 }
 
 sub write_section
@@ -229,7 +159,9 @@ sub write_section_closer
 
 =head2 add_section
 
-under construction
+    $obj->add_section(foo=>'bar')
+
+Add the section named "foo" with value "bar" to the context pointed by $obj.
 
 =cut
 
@@ -240,16 +172,35 @@ sub add_section
 
 =pod
 
-=head2 section
+=head2 section [name], [value]
 
-    @sections_name      = $obj->section;
-    @sections_entrys    = $obj->section(SectionName);
+    @sections_list      = @{ $obj->section };
+    @section_values     = @{ $obj->section(SectionName) };
     $section_object     = $obj->section(SectionName=>'value');
 
 arguments:
 
 name    : the name of section, it's "File" in section <File "/path/to/file"></File</File>
 value   : the value of the section
+
+This method return :
+
+=over 4
+
+=item -
+
+list of sections in current context - as an array reference - if no argument is given.
+
+=item -
+
+list of sections "foo"'s values - as an array reference - if the only argument is "foo"
+
+=item -
+
+an object for the context pointed by the section "foo" with value "bar" if arguments
+given was "foo" and "bar".
+
+=back
 
 =cut
 
@@ -323,7 +274,9 @@ sub write_directive
 
 =head2 add_directive
 
-under construction
+    $obj->add_directive(foo=>'bar');
+
+Add the directive "foo" with value "bar" in the context pointed by $obj.
 
 =cut
 
@@ -336,11 +289,37 @@ sub add_directive
 
 =head2 directive
 
-under construction
+    @directives_list    = @{ $obj->directive };
+    @directive_values   = @{ $obj->directive(Foo);
+    $directvie_object   = $obj->directive(Foo=>'bar');
+
+Arguments:
+
+name    : the name of directive.
+value   : value of the directive.
+
+This method return :
+
+=over 4
+
+=item -
+
+list of directives in context pointed by $obj - as an array reference - if no argument is given.
+
+=item -
+
+list of "foo" directive's values - as an array reference - if the only argument is "foo".
+
+=item -
+
+an object for manipulating directive called "foo" with value "bar" if arguments
+given was "foo" and "bar". Warning, if several directive have the same name and
+value, the last one is taken, may change in future versions.
+
+=back
 
 =cut
 
-# directive(directive=>value, 'add', -section=>'directory.file')
 sub directive
 {
     my($self, $directive, $value, $add) = @_;
@@ -414,9 +393,102 @@ sub directive
 
 =pod
 
+=head2 delete
+
+    $htconf->directive('AddType'=>'.pl')->delete;
+    $htconf->section('File'=>'/path/to/file')->delete;
+
+Delete the current context pointed by object. Can be directive or section.
+
+=cut
+
+sub delete
+{
+    my $self   = shift;
+    my $root   = $self->_root || return undef;
+    my $master = $self->{master};
+    my $deleted= 0;
+
+    if($self->{type} eq 'section')
+    {
+        my $lines   = $root->{_pos};
+        for(my $i = 0; $i < @$lines; $i++)
+        {
+            my $offset = $lines->[$i]->[0]; # first section opener tag's line (for trucated line) 
+            my $length = $lines->[++$i]->[-1] - $offset + 1; # last section closer tag's line (for trucated line)
+            $offset -= $deleted;
+            splice(@{$master->{contents_raw}}, $offset, $length);
+            $deleted += $length;
+        }
+    }
+    elsif($self->{type} eq 'directive')
+    {
+        my $offset = $root->[1]->[0];
+        my $length = $root->[1]->[-1] - $offset + 1;
+        splice(@{$master->{contents_raw}}, $offset, $length);
+        $deleted = $length;
+    }
+    else
+    {
+        return($self->_set_error('methode not allowed'));
+    }
+
+    $self->_parse;
+    undef($_[0]);
+    return($deleted);
+}
+
+=pod
+
+=head2 value [newvalue]
+
+    $htconf->directive('File'=>'/path/to/foo')->value('/path/to/bar');
+
+Change the value of a directive or section. If no argument given, return
+the value of object $htconf.
+
+=cut
+
+sub value
+{
+    my $self     = shift;
+    my $newvalue = shift || return $self->{value};
+    my $master   = $self->{master};
+    my $root     = $self->_root or return undef;
+    
+    if($self->{type} eq 'section')
+    {
+        my $lines   = $root->{_pos};
+        my $trunc   = 0;
+        for(my $i = 0; $i < @$lines; $i++)
+        {
+            my $offset = $lines->[$i]->[0]; # first section opener tag's line 
+            my $length = $lines->[$i++]->[-1] - $offset + 1; # last section section opener tag's line (often the same as first)
+            # if the line was truncated, we replace it by a single line
+            $offset -= $trunc;
+            splice(@{$master->{contents_raw}}, $offset, $length, $self->write_section($self->{name}, $newvalue));
+            $trunc += $lenfth - 1; # if line taken more than one line, keep trace of remainder
+        }
+    }
+    elsif($self->{type} eq 'directive')
+    {
+        my $offset = $root->[1]->[0];
+        my $length = $root->[1]->[-1] - $offset + 1;
+        splice(@{$master->{contents_raw}}, $offset, $length, $self->write_directive($self->{name}, $newvalue));
+    }
+    else
+    {
+        return($self->_set_error('methode not allowed'));
+    }
+
+    $self->_parse;
+}
+
+=pod
+
 =head2 error
 
-under construction
+Return the last append error.
 
 =cut
 
@@ -571,6 +643,17 @@ Copyright (C) 2001 - Olivier Poitrey
 =head1 HISTORY
 
 $Log: Config.pm,v $
+Revision 1.17  2001/09/17 23:44:06  rs
+minor bugfix
+
+Revision 1.16  2001/09/17 23:12:53  rs
+Make a real quick and dirty documentation
+value() now return the context value if called without arguments
+new() can now be called without arguments, save() need one in this case
+
+Revision 1.15  2001/08/23 01:05:35  rs
+update of documentation's DESCRIPTION section
+
 Revision 1.14  2001/08/18 13:38:25  rs
 fix major bug, if config file wasn't exist, module won't work
 

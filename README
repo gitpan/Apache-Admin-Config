@@ -12,8 +12,18 @@ To install this module type the following:
 
 CHANGES
 
+0.06  Tue Sep 18 01:09:24 2001
+        - Make a quick and dirty documentation
+        - value() return the context value if no arguments given
+        - new() can be called without argument, save() need an argument in this
+          case
+
 0.05  Sat Aug 18 14:39:45 2001
-        - Bug fix, $master value was undefined in value method, so value wasn't work at all
+        - Major bug fix, if config file wasn't exists, module won't work !
+        - Bug fix, value method wasn't took the appropriate value for change it, resulted
+          to an unchanged value
+        - Bug fix, $master and $root value was undefined in value method, so value wasn't
+          work at all
 
 0.04  Fri Aug 17 01:42:16 2001
         - Fix a minor bug in directive method.
@@ -29,74 +39,86 @@ CHANGES
 0.01  Sun Aug 12 11:58:10 2001
 	- Original version; created by h2xs 1.21 with options -AX -n Apache::Admin
 
+NAME
+    Apache::Admin::Config - A common module to manipulate Apache
+    configuration files
+
 SYNOPSIS
         use Apache::Admin::Config;
 
-        my $apache_conf = new Apache::Admin::Config ("/path/to/config_file.conf")
+        my $obj = new Apache::Admin::Config ("/path/to/config_file.conf")
             || die $Apache::Admin::Config::ERROR;
 
-        # parsing contents
-        my @directives      = @{ $apache_conf->directive() || die $apache_conf->error };
-        my @sections        = @{ $apache_conf->section() || die $apache_conf->error };
-        my @file_sections   = @{ $apache_conf->section('file') || die $apache_conf->error };
+        # getting the full list of directives in current context die if error
+        my @directives_list = @{ $obj->directive || die $obj->error };
 
-        # parsing file section contents
-        my @file_directives = @{ $apache_conf->section(file=>$file_sections[0])->directive };
-        my @file_sections   = @{ $apache_conf->section(file=>$file_sections[0])->section };
+        # getting the full list of sections in current context or die if error
+        my @sections_list = @{ $obj->section || dit $obj->error };
 
-        # adding directive/section
-        $apache_conf->add_directive(Options=>'+Indexes');
-        $apache_conf->section(File=>'/some/file')->add_directive(Allow=>'from all');
+        # getting values' list of directive "Foo"
+        my @foo_directive_values = @{ $obj->directive('Foo') };
 
-        $apache_conf->add_section(File=>'/some/file');
-        $apache_conf->section(VirtualHost=>'some.host')->add_section(File=>'/some/file');
-
-        # change directive value
-        $apache_conf->directive(Options=>'+Indexes')->value('+Indexes -FollowSymlinks');
-        $apache_conf->section(File=>'/some/file')->directive(Allow=>'from all')->value('from 127.0.0.1');
+        # getting values' list of section "Foo"
+        my @foo_section_values = @{ $obj->section('Foo') };
     
-        $apache_conf->section(File=>'/some/file')->value('/some/other/file');
-        $apache_conf->section(VirtualHost=>'some.host')->section(File=>'/some/file')->value('/some/other/file');
+        # adding directive "Foo" with value "bar" in the current context
+        $obj->add_directive(Foo=>'bar');
+        # adding directive "Foo" with value "bar" in the section <VirtualHost test.com> 
+        # of current context
+        $obj->section(VirtualHost=>'test.com')->add_directive(Foo=>'bar');
 
-        # delete directive (the last one if more than one identicales)
-        $apache_conf->directive(Options=>'+Indexes')->delete;
-        $apache_conf->section(File=>'/some/file')->directive(Allow=>'from all')->delete;
+        # adding section "Foo" with value "bar" in the current context
+        $obj->add_section(Foo=>'bar');
+        # adding section "Foo" with value "bar" in the section <VirtualHost text.com>
+        # of current context (in two steps)
+        my $subsection = $obj->section(VirtualHost=>'test.com');
+        $subsection->add_section(Foo=>'bar');
 
-        $apache_conf->section(File=>'/some/file')->delete;
-        $apache_conf->section(VirtualHost=>'some.host')->section(File=>'/some/file')->delete;
+        # change directive "Foo" with value "bar" to value "rab"
+        $obj->directive(Foo=>'bar')->value('rab');
+        # same in sub-section
+        $obj->section(VirtualHost=>'test.com')->directive(Foo=>'bar')->value('rab');
+    
+        # change section "Foo" with value "bar" to value "rab"
+        $obj->section(Foo=>'bar')->value('rab');
 
-        # save changes
+        # delete directive "Foo bar" (the last one if serveral identicales)
+        $obj->directive(Foo=>'bar')->delete;
+
+        # delete section "<Foo bar>...</bar>" (all sections if dispatched several
+        # sections with same name/value)
+        $obj->section(Foo=>'bar')->delete;
+    
+        # save changes in the file
         $apache_conf->save;
+        # or in another file
         $apache_conf->save('/path/to/another/file.conf');
 
 DESCRIPTION
-    under construction
+    This module allows you to edit Apache configuration files without
+    modifying comments, indentation, or truncated lines.
 
 METHODES
-  new
+  new [/path/to/file]
 
-    under construction
+    Create or read, if given in argument, an apache like configuration file.
 
-  save
+  save [/path/to/file]
 
-    under construction
-
-  delete
-
-    under construction
-
-  value
-
-    under construction
+    Write modifications to the configuration file. If a path to a file is
+    given, save the modification to this file instead.
 
   add_section
 
-    under construction
+        $obj->add_section(foo=>'bar')
 
-  section
+    Add the section named "foo" with value "bar" to the context pointed by
+    $obj.
 
-        @sections_name      = $obj->section;
-        @sections_entrys    = $obj->section(SectionName);
+  section [name], [value]
+
+        @sections_list      = @{ $obj->section };
+        @section_values     = @{ $obj->section(SectionName) };
         $section_object     = $obj->section(SectionName=>'value');
 
     arguments:
@@ -104,17 +126,64 @@ METHODES
     name : the name of section, it's "File" in section <File
     "/path/to/file"></File</File> value : the value of the section
 
+    This method return :
+
+    -   list of sections in current context - as an array reference - if no
+        argument is given.
+
+    -   list of sections "foo"'s values - as an array reference - if the
+        only argument is "foo"
+
+    -   an object for the context pointed by the section "foo" with value
+        "bar" if arguments given was "foo" and "bar".
+
   add_directive
 
-    under construction
+        $obj->add_directive(foo=>'bar');
+
+    Add the directive "foo" with value "bar" in the context pointed by $obj.
 
   directive
 
-    under construction
+        @directives_list    = @{ $obj->directive };
+        @directive_values   = @{ $obj->directive(Foo);
+        $directvie_object   = $obj->directive(Foo=>'bar');
+
+    Arguments:
+
+    name : the name of directive. value : value of the directive.
+
+    This method return :
+
+    -   list of directives in context pointed by $obj - as an array
+        reference - if no argument is given.
+
+    -   list of "foo" directive's values - as an array reference - if the
+        only argument is "foo".
+
+    -   an object for manipulating directive called "foo" with value "bar"
+        if arguments given was "foo" and "bar". Warning, if several
+        directive have the same name and value, the last one is taken, may
+        change in future versions.
+
+  delete
+
+        $htconf->directive('AddType'=>'.pl')->delete;
+        $htconf->section('File'=>'/path/to/file')->delete;
+
+    Delete the current context pointed by object. Can be directive or
+    section.
+
+  value [newvalue]
+
+        $htconf->directive('File'=>'/path/to/foo')->value('/path/to/bar');
+
+    Change the value of a directive or section. If no argument given, return
+    the value of object $htconf.
 
   error
 
-    under construction
+    Return the last append error.
 
 AUTHOR
     Olivier Poitrey <rs@rhapsodyk.net>
@@ -140,23 +209,38 @@ COPYRIGHT
 
 HISTORY
     $Log: README,v $
-    Revision 1.8  2001/08/18 12:43:00  rs
-    conflict merged
+    Revision 1.9  2001/09/17 23:14:44  rs
+    => 0.06
+ Revision 1.16 2001/09/17 23:12:53 rs Make a real
+    quick and dirty documentation value() now return the context value if
+    called without arguments new() can now be called without arguments,
+    save() need one in this case
 
-    Revision 1.7  2001/08/17 08:53:22  rs
-    integration of Changes in README
+    Revision 1.15 2001/08/23 01:05:35 rs update of documentation's
+    DESCRIPTION section
 
-    Revision 1.6  2001/08/16 23:43:19  rs
-    move to 0.04
+    Revision 1.14 2001/08/18 13:38:25 rs fix major bug, if config file
+    wasn't exist, module won't work
 
-    Revision 1.5  2001/08/16 23:08:39  rs
-    update infos for version 0.03
+    Revision 1.13 2001/08/18 12:50:14 rs value method wasn't take the
+    appropriate value for change it
 
-    Revision 1.4  2001/08/15 23:58:25  rs
-    changes for 0.02
+    Revision 1.12 2001/08/18 12:46:15 rs $root value was not defined !
 
-    Revision 1.3  2001/08/15 23:44:18  rs
-    add the pod documentation of Apache::Admin::Config
- Revision 1.6 2001/08/14 09:49:07 rs adding some pod
-    sections
+    Revision 1.11 2001/08/18 12:39:35 rs migrate to 0.05
+
+    Revision 1.10 2001/08/18 12:39:15 rs bug fix in value method, $master
+    wasn't defined, cause method to not work at all
+
+    Revision 1.9 2001/08/16 23:41:59 rs fix bug in directive method :
+    directive foo doesn't exists @{$conf->directive("foo")};
+    $conf->add_directive(foo=>'bar'); Modification of non-creatable array
+    value attempted, subscript -1 at ... line 358.
+
+    Revision 1.8 2001/08/16 23:07:04 rs fix a bug in directive methode.
+
+    Revision 1.7 2001/08/15 23:48:33 rs Fix a major bug that cause "syntaxe
+    error" on directives that haven't values like "clearmodulelist"
+
+    Revision 1.6 2001/08/14 09:49:07 rs adding some pod sections
 
