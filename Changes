@@ -1,5 +1,10 @@
 Revision history for Perl extension Apache::Admin::Config.
 
+0.15 Tue Dec 11 14:18:07 2001
+        - Minor bugfix: add_(section|directive) with option -onbottom
+          were dont work properly
+        - Added dump_raw() method 
+
 0.14 Sat Dec  8 14:14:50 2001
         - Major bugfix that cause an endless loop in the constructor
           with perl 5.005 and maybe 5.6

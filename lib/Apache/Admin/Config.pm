@@ -7,7 +7,7 @@ BEGIN
     use FileHandle;
     use overload nomethod => \&to_string;
 
-    $Apache::Admin::Config::VERSION = '0.14';
+    $Apache::Admin::Config::VERSION = '0.15';
     $Apache::Admin::Config::DEBUG   = 0;
 }
 
@@ -243,12 +243,26 @@ sub save
         $fh = new FileHandle(">$htaccess") or return $self->_set_error("can't open `$htaccess' file for read");
     }
 
-    foreach(@{$self->{top}->{contents_raw}})
-    {
-        print $fh "$_\n";
-    }
+    print $fh $self->dump_raw;
 
     return 1;
+}
+
+=pod
+
+=head2 dump_raw
+
+Return the configuration file as same as it will be if it saved in a file with the
+B<save()> method.
+
+=cut
+
+sub dump_raw
+{
+    my $self = shift;
+    return($self->_set_error('only root object can call dump_raw method')) unless($self->{type} eq 'top');
+
+    return(join('', map("$_\n", @{$self->{top}->{contents_raw}})));
 }
 
 sub write_section
@@ -334,6 +348,7 @@ sub add_section
       if(defined $root->{$typed_section} && defined $root->{$typed_section}->{$entry});
 
     my $insert_line;
+    $type = defined $type ? $type : '-onbottom'; # default behavior
     if(($type eq '-before' || $type eq '-after')
         && defined $target && ref $target && $target->isa(Apache::Admin::Config)
         && $target->isin($self))
@@ -589,6 +604,7 @@ sub add_directive
     return($self->_set_error('to few arguments')) unless defined $directive;
     
     my $insert_line;
+    $type = defined $type ? $type : '-onbottom'; # default behavior
     if(($type eq '-before' || $type eq '-after') 
         && defined $target && ref $target && $target->isa(Apache::Admin::Config)
         && $target->isin($self))
@@ -1059,7 +1075,7 @@ sub last_line
 
     if($type eq 'top')
     {
-        return scalar @{$self->{top}->{contents_raw}}; # first line of file is always 1
+        return(scalar(@{$self->{top}->{contents_raw}})+1); # first line of file is always 1
     }
     elsif($type eq 'directive')
     {
@@ -1273,11 +1289,11 @@ sub _parse
             # 0=>directive name 1=>ref to directive 2=>index of directive in directive name array
             push(@{$level[-1]->{_sorted_directives}}, [$directive, $level[-1]->{$directive}->[-1], $#{$level[-1]->{$directive}}]); 
         }
-        elsif($line =~ /^<\s*(\w+)\s+([^>]+)>$/)
+        elsif($line =~ /^<\s*(\w+)(?:\s+([^>]+)|\s*)>$/)
         {
             # it's a section opening
             my $section = _type(lc($1), 'section'); # we add an S in front of section for isolate it from directives
-            my $value = $2;
+            my $value = defined $2 ? $2 : '';
             $value =~ s/^\s*|\s*$//g;
             # section exists, but is not a section !
             return $self->_set_error(sprintf('%s: syntax error at line %d', $file, $n+1))

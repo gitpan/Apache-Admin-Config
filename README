@@ -16,6 +16,11 @@ UPGRADING FROM PREVIOUS VERSIONS
 
 CHANGES
 
+0.15 Tue Dec 11 14:18:07 2001
+        - Minor bugfix: add_(section|directive) with option -onbottom
+          were dont work properly
+        - Added dump_raw() method 
+
 0.14 Sat Dec  8 14:14:50 2001
         - Major bugfix that cause an endless loop in the constructor
           with perl 5.005 and maybe 5.6
@@ -108,7 +113,7 @@ CHANGES
 
 0.01  Sun Aug 12 11:58:10 2001
 	- Original version; created by h2xs 1.21 with options -AX -n Apache::Admin
-        
+
 NAME
     Apache::Admin::Config - A common module to manipulate Apache
     configuration files
@@ -118,13 +123,13 @@ SYNOPSIS
 
         # Parse an apache configuration file
         my $obj = new Apache::Admin::Config ("/path/to/config_file.conf")
-            || die $Apache::Admin::Config::ERROR;
+            or die $Apache::Admin::Config::ERROR;
 
         # or parse a filehandle
         open(ANHANDLE, "/path/to/a/file")...
         ...
         my $obj = new Apache::Admin::Config (\*ANHANDLE)
-            || die $Apache::Admin::Config::ERROR;
+            or die $Apache::Admin::Config::ERROR;
 
         #
         # working with directives
@@ -273,6 +278,11 @@ METHODES
     reference to a filehandle like this :
 
         $conf->save(\*MYHANDLE) or die($conf->error);
+
+  dump_raw
+
+    Return the configuration file as same as it will be if it saved in a
+    file with the save() method.
 
   add_section (*name*=>*'value'*, [-before=>*target* | -after=>*target* | -ontop | -onbottom])
 
