@@ -1,16 +1,5 @@
-Apache::Admin::Config version 0.01
+Apache::Admin::Config version 0.02
 =========================
-
-The README is used to introduce the module and provide instructions on
-how to install the module, any machine dependencies it may have (for
-example C compilers and installed libraries) and any other information
-that should be provided before the module is installed.
-
-A README file is required for CPAN modules since CPAN extracts the
-README file from a module distribution so that people browsing the
-archive can use it get an idea of the modules uses. It is usually a
-good idea to provide version information here so that people can
-decide whether fixes for the module are worth downloading.
 
 INSTALLATION
 
@@ -21,15 +10,122 @@ To install this module type the following:
    make test
    make install
 
-DEPENDENCIES
+SYNOPSIS
+        use Apache::Admin::Config;
 
-This module requires these other modules and libraries:
+        my $apache_conf = new Apache::Admin::Config ("/path/to/config_file.conf")
+            || die $Apache::Admin::Config::ERROR;
 
-  blah blah blah
+        # parsing contents
+        my @directives      = @{ $apache_conf->directive() || die $apache_conf->error };
+        my @sections        = @{ $apache_conf->section() || die $apache_conf->error };
+        my @file_sections   = @{ $apache_conf->section('file') || die $apache_conf->error };
 
-COPYRIGHT AND LICENCE
+        # parsing file section contents
+        my @file_directives = @{ $apache_conf->section(file=>$file_sections[0])->directive };
+        my @file_sections   = @{ $apache_conf->section(file=>$file_sections[0])->section };
 
-Put the correct copyright and licence information here.
+        # adding directive/section
+        $apache_conf->add_directive(Options=>'+Indexes');
+        $apache_conf->section(File=>'/some/file')->add_directive(Allow=>'from all');
 
-Copyright (C) 2001 Olivier Poitrey <rs@rhapsodyk.net>
+        $apache_conf->add_section(File=>'/some/file');
+        $apache_conf->section(VirtualHost=>'some.host')->add_section(File=>'/some/file');
+
+        # change directive value
+        $apache_conf->directive(Options=>'+Indexes')->value('+Indexes -FollowSymlinks');
+        $apache_conf->section(File=>'/some/file')->directive(Allow=>'from all')->value('from 127.0.0.1');
+    
+        $apache_conf->section(File=>'/some/file')->value('/some/other/file');
+        $apache_conf->section(VirtualHost=>'some.host')->section(File=>'/some/file')->value('/some/other/file');
+
+        # delete directive (the last one if more than one identicales)
+        $apache_conf->directive(Options=>'+Indexes')->delete;
+        $apache_conf->section(File=>'/some/file')->directive(Allow=>'from all')->delete;
+
+        $apache_conf->section(File=>'/some/file')->delete;
+        $apache_conf->section(VirtualHost=>'some.host')->section(File=>'/some/file')->delete;
+
+        # save changes
+        $apache_conf->save;
+        $apache_conf->save('/path/to/another/file.conf');
+
+DESCRIPTION
+    under construction
+
+METHODES
+  new
+
+    under construction
+
+  save
+
+    under construction
+
+  delete
+
+    under construction
+
+  value
+
+    under construction
+
+  add_section
+
+    under construction
+
+  section
+
+        @sections_name      = $obj->section;
+        @sections_entrys    = $obj->section(SectionName);
+        $section_object     = $obj->section(SectionName=>'value');
+
+    arguments:
+
+    name : the name of section, it's "File" in section <File
+    "/path/to/file"></File</File> value : the value of the section
+
+  add_directive
+
+    under construction
+
+  directive
+
+    under construction
+
+  error
+
+    under construction
+
+AUTHOR
+    Olivier Poitrey <rs@rhapsodyk.net>
+
+LICENCE
+    This program is free software; you can redistribute it and/or modify it
+    under the terms of the GNU General Public License as published by the
+    Free Software Foundation; either version 2 of the License, or (at your
+    option) any later version.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+    Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with the program; if not, write to the Free Software Foundation, Inc. :
+
+    59 Temple Place, Suite 330, Boston, MA 02111-1307
+
+COPYRIGHT
+    Copyright (C) 2001 - Olivier Poitrey
+
+HISTORY
+    $Log: README,v $
+    Revision 1.4  2001/08/15 23:58:25  rs
+    changes for 0.02
+
+    Revision 1.3  2001/08/15 23:44:18  rs
+    add the pod documentation of Apache::Admin::Config
+ Revision 1.6 2001/08/14 09:49:07 rs adding some pod
+    sections
 

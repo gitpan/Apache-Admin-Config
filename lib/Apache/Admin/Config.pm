@@ -5,7 +5,7 @@ BEGIN
     use 5.005;
     use strict;
 
-    $Apache::Admin::Config::VERSION = '0.01';
+    $Apache::Admin::Config::VERSION = '0.02';
     $Apache::Admin::Config::DEBUG   = 0;
 }
 
@@ -20,7 +20,8 @@ Apache::Admin::Config - A common module for manipulate Apache configurations fil
 
     use Apache::Admin::Config;
 
-    my $apache_conf = new Apache::Admin::Config ("/path/to/config_file.conf");
+    my $apache_conf = new Apache::Admin::Config ("/path/to/config_file.conf")
+        || die $Apache::Admin::Config::ERROR;
 
     # parsing contents
     my @directives      = @{ $apache_conf->directive() || die $apache_conf->error };
@@ -51,6 +52,10 @@ Apache::Admin::Config - A common module for manipulate Apache configurations fil
 
     $apache_conf->section(File=>'/some/file')->delete;
     $apache_conf->section(VirtualHost=>'some.host')->section(File=>'/some/file')->delete;
+
+    # save changes
+    $apache_conf->save;
+    $apache_conf->save('/path/to/another/file.conf');
 
 =head1 DESCRIPTION
 
@@ -447,10 +452,10 @@ sub _parse
         }
         $line =~ s/^\s*|\s*$//g;
         next if($line eq '');
-        if($line =~ /^(\w+)\s+(.*)$/)
+        if($line =~ /^(\w+)\s*(.*)$/)
         {
             my $directive = lc($1);
-            my $value = $2;
+            my $value = defined $2 ? $2 : '';
             $value =~ s/^\s*|\s*$//g;
             # directive exists but is not a directive !
             return $self->_set_error(sprintf('syntaxe error at line %d', $n+1))
@@ -553,6 +558,10 @@ Copyright (C) 2001 - Olivier Poitrey
 =head1 HISTORY
 
 $Log: Config.pm,v $
+Revision 1.7  2001/08/15 23:48:33  rs
+Fix a major bug that cause "syntaxe error" on directives that haven't values
+like "clearmodulelist"
+
 Revision 1.6  2001/08/14 09:49:07  rs
 adding some pod sections
 

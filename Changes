@@ -1,4 +1,9 @@
 Revision history for Perl extension Apache::Admin::Config.
 
+0.02  Thu Aug 16 01:48:54 2001
+        - Put module on CPAN
+        - Fix a very major bug that cause "syntax error" from parser on directives with
+          no value like "clearmodulelist", thanx A2 for this report.
+
 0.01  Sun Aug 12 11:58:10 2001
-	- original version; created by h2xs 1.21 with options -AX -n Apache::Admin
+	- Original version; created by h2xs 1.21 with options -AX -n Apache::Admin
