@@ -9,7 +9,7 @@ my $apache = new Apache::Admin::Config ('t/httpd.conf-dist');
 ok(defined $apache);
 
 my @list = $apache->comment;
-ok(@list, 660);
+ok(@list, 85);
 
 my $sec = $apache->section(-which=>1);
 ok(defined $sec);
