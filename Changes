@@ -1,7 +1,10 @@
 Revision history for Perl extension Apache::Admin::Config.
 
+0.04  Fri Aug 17 01:42:16 2001
+        - Fix a minor bug in directive method.
+
 0.03  Fri Aug 17 01:07:17 2001
-        - Fix a major bug in directive methode.
+        - Fix a major bug in directive method.
 
 0.02  Thu Aug 16 01:48:54 2001
         - Put module on CPAN

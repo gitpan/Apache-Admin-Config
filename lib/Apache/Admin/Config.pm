@@ -5,7 +5,7 @@ BEGIN
     use 5.005;
     use strict;
 
-    $Apache::Admin::Config::VERSION = '0.03';
+    $Apache::Admin::Config::VERSION = '0.04';
     $Apache::Admin::Config::DEBUG   = 0;
 }
 
@@ -391,7 +391,7 @@ sub directive
         }
         else
         {
-            return [map($_->[0], @{$root->{$directive}})];
+            return [$root->{$directive} ? map($_->[0], @{$root->{$directive}}) : ()];
         }
     }
     else
@@ -558,6 +558,13 @@ Copyright (C) 2001 - Olivier Poitrey
 =head1 HISTORY
 
 $Log: Config.pm,v $
+Revision 1.9  2001/08/16 23:41:59  rs
+fix bug in directive method :
+directive foo doesn't exists
+@{$conf->directive("foo")};
+$conf->add_directive(foo=>'bar');
+Modification of non-creatable array value attempted, subscript -1 at ... line 358.
+
 Revision 1.8  2001/08/16 23:07:04  rs
 fix a bug in directive methode.
 

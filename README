@@ -1,4 +1,4 @@
-Apache::Admin::Config version 0.03
+Apache::Admin::Config version 0.04
 =========================
 
 INSTALLATION
@@ -9,6 +9,22 @@ To install this module type the following:
    make
    make test
    make install
+
+CHANGES
+
+0.04  Fri Aug 17 01:42:16 2001
+        - Fix a minor bug in directive method.
+
+0.03  Fri Aug 17 01:07:17 2001
+        - Fix a major bug in directive method.
+
+0.02  Thu Aug 16 01:48:54 2001
+        - Put module on CPAN
+        - Fix a very major bug that cause "syntax error" from parser on directives with
+          no value like "clearmodulelist", thanx A2 for this report.
+
+0.01  Sun Aug 12 11:58:10 2001
+	- Original version; created by h2xs 1.21 with options -AX -n Apache::Admin
 
 SYNOPSIS
         use Apache::Admin::Config;
@@ -121,6 +137,12 @@ COPYRIGHT
 
 HISTORY
     $Log: README,v $
+    Revision 1.7  2001/08/17 08:53:22  rs
+    integration of Changes in README
+
+    Revision 1.6  2001/08/16 23:43:19  rs
+    move to 0.04
+
     Revision 1.5  2001/08/16 23:08:39  rs
     update infos for version 0.03
 
