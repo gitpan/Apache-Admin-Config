@@ -1,4 +1,4 @@
-Apache::Admin::Config 0.13
+Apache::Admin::Config 0.14
 ==========================
 
 INSTALLATION
@@ -15,6 +15,11 @@ UPGRADING FROM PREVIOUS VERSIONS
 * Upgrading from version 0.08 or earlier: read UPGRADE-0.10
 
 CHANGES
+
+0.14 Sat Dec  8 14:14:50 2001
+        - Major bugfix that cause an endless loop in the constructor
+          with perl 5.005 and maybe 5.6
+        - Some corrections in error messages
 
 0.13 Thu Dec  6 11:26:05 2001
         - Fix compatibility problem with perl 5.005, thinks to 
@@ -103,7 +108,7 @@ CHANGES
 
 0.01  Sun Aug 12 11:58:10 2001
 	- Original version; created by h2xs 1.21 with options -AX -n Apache::Admin
-
+        
 NAME
     Apache::Admin::Config - A common module to manipulate Apache
     configuration files

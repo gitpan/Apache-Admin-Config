@@ -7,7 +7,7 @@ BEGIN
     use FileHandle;
     use overload nomethod => \&to_string;
 
-    $Apache::Admin::Config::VERSION = '0.13';
+    $Apache::Admin::Config::VERSION = '0.14';
     $Apache::Admin::Config::DEBUG   = 0;
 }
 
@@ -24,13 +24,13 @@ Apache::Admin::Config - A common module to manipulate Apache configuration files
 
     # Parse an apache configuration file
     my $obj = new Apache::Admin::Config ("/path/to/config_file.conf")
-        || die $Apache::Admin::Config::ERROR;
+        or die $Apache::Admin::Config::ERROR;
 
     # or parse a filehandle
     open(ANHANDLE, "/path/to/a/file")...
     ...
     my $obj = new Apache::Admin::Config (\*ANHANDLE)
-        || die $Apache::Admin::Config::ERROR;
+        or die $Apache::Admin::Config::ERROR;
 
 
     #
@@ -226,7 +226,7 @@ sub save
 {
     my $self = shift;
     my $saveas = shift;
-    return($self->_set_error('only root object can call save methode')) unless($self->{type} eq 'top');
+    return($self->_set_error('only root object can call save method')) unless($self->{type} eq 'top');
 
     my $htaccess = defined $saveas ? $saveas : $self->{htaccess};
 
@@ -240,7 +240,7 @@ sub save
     }
     else
     {
-        $fh = new FileHandle(">$htaccess") or return $self->_set_error('can\'t open htaccess file for read');
+        $fh = new FileHandle(">$htaccess") or return $self->_set_error("can't open `$htaccess' file for read");
     }
 
     foreach(@{$self->{top}->{contents_raw}})
@@ -322,11 +322,11 @@ sub add_section
     # _get_arg return undef on error or empty string on not founded rule
     return($self->_set_error('malformed arguments')) if(not defined $target);
 
-    return($self->_set_error('to many arguments')) if(@_ > 2);
+    return($self->_set_error('too many arguments')) if(@_ > 2);
     my($section, $entry) = @_;
 
-    return($self->_set_error('methode not allowed')) if($self->{type} eq 'directive');
-    return($self->_set_error('to few arguments')) unless defined $section;
+    return($self->_set_error('method not allowed')) if($self->{type} eq 'directive');
+    return($self->_set_error('too few arguments')) unless defined $section;
     $section = lc $section if(defined $section);
     my $typed_section = _type($section, 'section');
 
@@ -408,10 +408,10 @@ sub section
     # $which isn't an integer
     return($self->_set_error('wrong type for "which" argument')) if($which =~ /[^\d\-]/);
     
-    return($self->_set_error('to many arguments')) if(@_ > 2);
+    return($self->_set_error('too many arguments')) if(@_ > 2);
     my($section, $entry) = @_;
     
-    return($self->_set_error('methode not allowed')) if($self->{type} eq 'directive');
+    return($self->_set_error('method not allowed')) if($self->{type} eq 'directive');
     $section = _type(lc($section), 'section') if(defined $section);
     my $top  = $self->{top};
     my $root = $self->_root || return undef;
@@ -665,10 +665,10 @@ sub directive
     # $which isn't an integer
     return($self->_set_error('wrong type for "which" argument')) if($which =~ /[^\d\-]/);
     
-    return($self->_set_error('to many arguments')) if(@_ > 2);
+    return($self->_set_error('too many arguments')) if(@_ > 2);
     my($directive, $value) = @_;
     
-    return($self->_set_error('methode not allowed')) if($self->{type} eq 'directive');
+    return($self->_set_error('method not allowed')) if($self->{type} eq 'directive');
     $directive = _type(lc($directive), 'directive') if(defined $directive);
     my $top  = $self->{top};
     my $root = $self->_root || return undef;
@@ -707,7 +707,7 @@ sub directive
         }
         else
         {
-            return($self->_set_error('directive does\'t exists')) unless exists $root->{$directive};
+            return($self->_set_error('directive doesn\'t exists')) unless exists $root->{$directive};
             if($which eq '')
             {
                 # called like this: $obj->directive(Foo)
@@ -854,7 +854,7 @@ sub delete
     }
     else
     {
-        return($self->_set_error('methode not allowed'));
+        return($self->_set_error('method not allowed'));
     }
 
     $self->_parse;
@@ -911,7 +911,7 @@ sub value
     }
     else
     {
-        return($self->_set_error('methode not allowed'));
+        return($self->_set_error('method not allowed'));
     }
 
     $self->_parse;
@@ -1112,9 +1112,9 @@ sub isin
 {
     my $self     = shift;
     my $recursif = _get_arg(\@_, '-recursif!');
-    my $target   = shift || return $self->_set_error('to few arguments');
+    my $target   = shift || return $self->_set_error('too few arguments');
     return($self->_set_error('method not allowed')) if($type eq 'top');
-    return($self->_set_error('target is not a object of myself')) unless(ref $target && $target->isa(Apache::Admin::Config));
+    return($self->_set_error('target is not an object of myself')) unless(ref $target && $target->isa(Apache::Admin::Config));
     return($self->_set_error('wrong type for target')) if($target->type eq 'directive');
 
     if($recursif)
@@ -1171,7 +1171,7 @@ sub type
 sub to_string
 {
     my($self, $other, $inv, $meth) = @_;
-    return $self unless defined $self->{to_string};
+    return overload::StrVal($self) unless defined $self->{to_string};
 
     if($meth eq 'eq')       { return($other ne $self->{to_string}); }
     elsif($meth eq 'ne')    { return($other ne $self->{to_string}); }
@@ -1265,7 +1265,7 @@ sub _parse
             my $value = defined $2 ? $2 : '';
             $value =~ s/^\s*|\s*$//g;
             # directive exists but is not a directive !
-            return $self->_set_error(sprintf('%s: syntaxe error at line %d', $file, $n+1))
+            return $self->_set_error(sprintf('%s: syntax error at line %d', $file, $n+1))
               if(defined $level[-1]->{$directive} && ref($level[-1]->{$directive}) ne 'ARRAY');
             push(@{$level[-1]->{$directive}}, [$value, \@_pos]); #[value, line's position]
 
@@ -1280,7 +1280,7 @@ sub _parse
             my $value = $2;
             $value =~ s/^\s*|\s*$//g;
             # section exists, but is not a section !
-            return $self->_set_error(sprintf('%s: syntaxe error at line %d', $file, $n+1))
+            return $self->_set_error(sprintf('%s: syntax error at line %d', $file, $n+1))
                 if(defined $level[-1]->{$section} && ref($level[-1]->{$section}) ne 'HASH');
 
             push(@level, $level[-1]->{$section}->{$value} ||= {});
@@ -1294,7 +1294,7 @@ sub _parse
         {
             # it's a section closing
             my $section = _type(lc($1), 'section'); # we add an S in front of section for isolate it from directives
-            return $self->_set_error(sprintf('%s: syntaxe error at line %d', $file, $n+1)) 
+            return $self->_set_error(sprintf('%s: syntax error at line %d', $file, $n+1)) 
               if(!@last_section || $section ne $last_section[-1]);
             push(@{$level[-1]->{_pos}}, \@_pos); # save last line of section
             pop(@last_section);
@@ -1302,7 +1302,7 @@ sub _parse
         }
         else
         {
-            return $self->_set_error(sprintf('%s: syntaxe error at line %d', $file, $n+1));
+            return $self->_set_error(sprintf('%s: syntax error at line %d', $file, $n+1));
         }
     }
 
@@ -1359,8 +1359,8 @@ sub _load
     }
     else
     {
-        return $self->_set_error('htaccess not readable') unless(-r $htaccess);
-        $fh = new FileHandle($htaccess) or return $self->_set_error('can\'t open htaccess file for read');
+        return $self->_set_error("`$htaccess' not readable") unless(-r $htaccess);
+        $fh = new FileHandle($htaccess) or return $self->_set_error("can't open `$htaccess' file for reading");
     }
     
     while(<$fh>)
