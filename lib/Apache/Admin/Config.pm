@@ -4,9 +4,10 @@ BEGIN
 {
     use 5.005;
     use strict;
+    use FileHandle;
     use overload nomethod => \&to_string;
 
-    $Apache::Admin::Config::VERSION = '0.11';
+    $Apache::Admin::Config::VERSION = '0.12';
     $Apache::Admin::Config::DEBUG   = 0;
 }
 
@@ -23,6 +24,12 @@ Apache::Admin::Config - A common module to manipulate Apache configuration files
 
     # Parse an apache configuration file
     my $obj = new Apache::Admin::Config ("/path/to/config_file.conf")
+        || die $Apache::Admin::Config::ERROR;
+
+    # or parse a filehandle
+    open(ANHANDLE, "/path/to/a/file")...
+    ...
+    my $obj = new Apache::Admin::Config (\*ANHANDLE)
         || die $Apache::Admin::Config::ERROR;
 
 
@@ -140,6 +147,8 @@ Apache::Admin::Config - A common module to manipulate Apache configuration files
     $obj->save;
     # or in another file (sound like "save as...")
     $obj->save("/path/to/another/file");
+    # or in an already openned file
+    $obj->save(\*FILE_HANDLE);
 
 =head1 DESCRIPTION
 
@@ -148,7 +157,7 @@ configuration files without modifying comments, identation, or truncated lines.
 
 =head1 METHODES
 
-=head2 new ([I</path/to/file>], B<-oldapi>=>I<0|1>)
+=head2 new ([I</path/to/file>|I<handle>], B<-oldapi>=>I<0|1>)
 
 Create or read, if given in argument, an apache like configuration file.
 
@@ -159,6 +168,13 @@ Arguments:
 =item I<C</path/to/file>>
 
 Path to the configuration file to parse. If none given, create a new one.
+
+= item I<C<handle>>
+
+Instead of specify a path to a file, you can give a reference to an handle that
+point to an already openned file. You can do this like this :
+
+    my $conf = new Apache::Admin::Config (\*MYHANDLE);
 
 =item I<B<-oldapi>>=E<gt>I<0/1>
 
@@ -182,12 +198,11 @@ sub new
     $self->{top}   = $self;
     $self->{type}  = 'top';
 
-    if(defined $htaccess && -f $htaccess)
+    if(defined $htaccess && (ref $htaccess eq 'GLOB' || -f $htaccess)) # trying to handle GLOBs
     {
-        return $self->_set_error('htaccess not readable') unless(-r _);
         $self->_load || return undef;
     }
-    else
+    else # if htaccess doesn't exists, init new one
     {
         $self->_init || return undef;
     }
@@ -197,10 +212,13 @@ sub new
 
 =pod
 
-=head2 save ([I</path/to/file>])
+=head2 save ([I</path/to/file>|I<HANDLE>])
 
 Write modifications to the configuration file. If a path to a file is given,
-save the modification to this file instead.
+save the modification to this file instead. You also can give a reference to
+a filehandle like this :
+
+    $conf->save(\*MYHANDLE) or die($conf->error);
 
 =cut
 
@@ -214,12 +232,21 @@ sub save
 
     return $self->_set_error("you have to specify a location for writing configuration") unless defined $htaccess;
 
-    open(HTACCESS, ">$htaccess") or return $self->_set_error('can\'t open htaccess file for read');
+    my $fh;
+
+    if(ref $htaccess eq 'GLOB')
+    {
+        $fh = $htaccess;
+    }
+    else
+    {
+        $fh = new FileHandle(">$htaccess") or return $self->_set_error('can\'t open htaccess file for read');
+    }
+
     foreach(@{$self->{top}->{contents_raw}})
     {
-        print HTACCESS "$_\n";
+        print $fh "$_\n";
     }
-    close(HTACCESS);
 
     return 1;
 }
@@ -1324,14 +1351,24 @@ sub _load
     my $self = shift;
     my $htaccess = $self->{htaccess};
     my @htaccess;
+    my $fh;
 
-    open(HTACCESS, $htaccess) or return $self->_set_error('can\'t open htaccess file for read');
-    while(<HTACCESS>)
+    if(ref $htaccess eq 'GLOB')
+    {
+        $fh = $htaccess;
+    }
+    else
+    {
+        return $self->_set_error('htaccess not readable') unless(-r $htaccess);
+        $fh = new FileHandle($htaccess) or return $self->_set_error('can\'t open htaccess file for read');
+    }
+    
+    while(<$fh>)
     {
         chomp;
         push(@htaccess, $_);
     }
-    close(HTACCESS);
+
     $self->{top}->{contents_raw} = \@htaccess;
     return $self->_parse;
 }

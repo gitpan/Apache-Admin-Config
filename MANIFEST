@@ -9,3 +9,4 @@ t/section.t
 t/section_oldapi.t
 t/directive.t
 t/directive_oldapi.t
+t/handle.t

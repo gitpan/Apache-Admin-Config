@@ -1,5 +1,10 @@
 Revision history for Perl extension Apache::Admin::Config.
 
+0.12 Sun Nov 11 10:49:40 2001
+        - New feature: you now can pase a file handle to the constructor
+          new() and the save() method instead of a path (thanks to
+          Peter Suschlik for his patch).
+        
 0.11 Thu Oct 25 20:57:52 2001
         - Bugfix in add_section method. add_section will add entries
           before the last context's section line.

@@ -34,7 +34,7 @@ WriteMakefile
     NAME            => 'Apache::Admin::Config',
     DISTNAME        => 'Apache-Admin-Config',
     VERSION_FROM    => 'lib/Apache/Admin/Config.pm', # finds $VERSION
-    PREREQ_PM       => {}, # e.g., Module::Name => 1.1
+    PREREQ_PM       => {FileHandle => 2.00},
     PMLIBDIRS       => ['lib'],
     ABSTRACT_FROM   => 'lib/Apache/Admin/Config.pm', # retrieve abstract from module
     AUTHOR          => 'Olivier Poitrey <rs@rhapsodyk.net>',
