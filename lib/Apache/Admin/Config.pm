@@ -4,7 +4,7 @@ use 5.005;
 use strict;
 use FileHandle;
 
-$Apache::Admin::Config::VERSION = '0.90';
+$Apache::Admin::Config::VERSION = '0.91';
 $Apache::Admin::Config::DEBUG   = 0;
 
 =pod
@@ -170,6 +170,10 @@ given, save the modification to this file instead. You also can give a
 reference to a filehandle like this :
 
     $conf->save(\*MYHANDLE) or die($conf->error());
+
+Note: If you invoke save() on an object instantiated with a filehandle,
+you should emptied it before. Keep in mind that the constructor don't
+seek the FH to the begin neither before nor after reading it.
 
 =cut
 
@@ -398,7 +402,8 @@ sub select
     return $self->_set_error('method not allowed')
         unless $self->{type} eq 'section';
 
-    $args{name} = lc $args{name} if defined $args{name};
+    $args{name}  = lc($args{name})  if defined $args{name};
+    $args{value} = lc($args{value}) if defined $args{value};
 
     my @children = @{$self->{children}};
 
@@ -417,7 +422,7 @@ sub select
         {
             if(defined $item->{$_})
             {
-                $match = $args{$_} eq $item->{$_}
+                $match = $args{$_} eq lc($item->{$_});
             }
             else
             {
@@ -1489,7 +1494,7 @@ sub _insert_directive
 
     my $directive = bless({});
     $directive->{type} = 'directive';
-    $directive->{name} = lc($directive_name);
+    $directive->{name} = $directive_name;
     $directive->{value} = $value;
     $directive->{raw} = $line;
     $directive->{'length'} = $length;
@@ -1508,7 +1513,7 @@ sub _insert_section
 
     my $section = bless({});
     $section->{type} = 'section';
-    $section->{name} = lc($section_name);
+    $section->{name} = $section_name;
     $section->{value} = $value;
     $section->{children} = [];
     $section->{raw} = $line;
@@ -1634,7 +1639,7 @@ sub _parse
             # it's a section closing
             my $section_name = lc $1;
             return $self->_set_error(sprintf('%s: syntax error at line %d', $file, $n)) 
-              if(!@level || $section_name ne $level[-1]->{name});
+              if(!@level || $section_name ne lc($level[-1]->{name}));
             $level[-1]->{raw2} = $raw_line;
             $level[-1]->{length2} = $length;
             pop(@level);
