@@ -1,6 +1,10 @@
 Revision history for Perl extension Apache::Admin::Config.
 
-0.10    
+0.11 Thu Oct 25 20:57:52 2001
+        - Bugfix in add_section method. add_section will add entries
+          before the last context's section line.
+
+0.10 Thu Oct 12 02:36:17 2001
         - Bugfix in test scripts, that makes test fail randomly
         - Major feature enhancements
             (DIRECTIVE|SECTION) METHOD

@@ -6,7 +6,7 @@ BEGIN
     use strict;
     use overload nomethod => \&to_string;
 
-    $Apache::Admin::Config::VERSION = '0.10';
+    $Apache::Admin::Config::VERSION = '0.11';
     $Apache::Admin::Config::DEBUG   = 0;
 }
 
@@ -315,7 +315,9 @@ sub add_section
     }
     else
     {
-        $insert_line = $type eq '-ontop' || $type eq '-after' ? $self->first_line : $self->last_line;
+        $insert_line = $type eq '-ontop' || $type eq '-after' ? $self->first_line : 
+            # in sections, last line return the closer, and we want live one line before it
+            ($self->type eq 'top' ? $self->last_line + 1 : $self->last_line + 0);
     }
     
     $self->_insert($insert_line, $self->write_section($section, $entry), $self->write_section_closing($section));
