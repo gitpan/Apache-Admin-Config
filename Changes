@@ -1,5 +1,9 @@
 Revision history for Perl extension Apache::Admin::Config.
 
+0.16 Thu Apr 11 16:44:53 2002
+        - Major bugfix: no longer merging namespace of identical 
+          sections (same name/value)
+
 0.15 Tue Dec 11 14:18:07 2001
         - Minor bugfix: add_(section|directive) with option -onbottom
           were dont work properly

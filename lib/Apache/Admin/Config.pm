@@ -7,7 +7,7 @@ BEGIN
     use FileHandle;
     use overload nomethod => \&to_string;
 
-    $Apache::Admin::Config::VERSION = '0.15';
+    $Apache::Admin::Config::VERSION = '0.16';
     $Apache::Admin::Config::DEBUG   = 0;
 }
 
@@ -337,15 +337,15 @@ sub add_section
     return($self->_set_error('malformed arguments')) if(not defined $target);
 
     return($self->_set_error('too many arguments')) if(@_ > 2);
-    my($section, $entry) = @_;
+    my($section_name, $entry) = @_;
 
     return($self->_set_error('method not allowed')) if($self->{type} eq 'directive');
-    return($self->_set_error('too few arguments')) unless defined $section;
-    $section = lc $section if(defined $section);
-    my $typed_section = _type($section, 'section');
+    return($self->_set_error('too few arguments')) unless defined $section_name;
+    $section_name = lc $section_name;
+    #my $typed_section = _type($section, 'section');
 
-    return($self->_set_error('can\'t add section, it already exists'))
-      if(defined $root->{$typed_section} && defined $root->{$typed_section}->{$entry});
+    #return($self->_set_error('can\'t add section, it already exists'))
+    #  if(defined $root->{$typed_section} && defined $root->{$typed_section}->{$entry});
 
     my $insert_line;
     $type = defined $type ? $type : '-onbottom'; # default behavior
@@ -362,9 +362,38 @@ sub add_section
             ($self->type eq 'top' ? $self->last_line + 1 : $self->last_line + 0);
     }
     
-    $self->_insert($insert_line, $self->write_section($section, $entry), $self->write_section_closing($section));
+    my $which = $self->_get_section_before_line($section_name, $insert_line);
+    print "w=$which";
+    
+    $self->_insert
+    (
+        $insert_line, 
+        $self->write_section($section_name, $entry),
+        $self->write_section_closing($section_name)
+    );
 
-    return($self->section($section, $entry));
+    return($self->section($section_name, $entry, ($which ? ('-which',$which) : ())));
+}
+
+sub _get_section_before_line
+{
+    my($self, $section_name, $line) = @_;
+    my $root = $self->_root;
+    my @befores;
+
+    my $n = 0;
+    foreach (@{$root->{_sorted_sections}})
+    {
+        my($sec_name, $sec_val, $sec_id) = @$_;
+        $n++;
+        next unless $sec_name eq $section_name;
+        my $section_tag = _type($sec_name, 'section', $sec_val, $sec_id);
+        my $secline = $root->{$section_tag}->{_pos}->[-1]->[-1]+1;
+        print $secline, $line;
+        return $n-1 if($secline > $line)
+    }
+
+    return $n;
 }
 
 =pod
@@ -424,58 +453,72 @@ sub section
     return($self->_set_error('wrong type for "which" argument')) if($which =~ /[^\d\-]/);
     
     return($self->_set_error('too many arguments')) if(@_ > 2);
-    my($section, $entry) = @_;
+    my($section_name, $entry) = @_;
     
     return($self->_set_error('method not allowed')) if($self->{type} eq 'directive');
-    $section = _type(lc($section), 'section') if(defined $section);
+    $section_name = lc $section_name if defined $section_name;
+    #$section = _type(lc($section), 'section') if(defined $section);
     my $top  = $self->{top};
     my $root = $self->_root || return undef;
 
-    if(defined $section)
+    if(defined $section_name)
     {
         if(defined $entry)
         {
-            if(defined $root->{$section} && defined $root->{$section}->{$entry})
+            return($self->_set_error("section `$section_name' doesn't exists"))
+                unless exists $root->{_sections_counter}->{$section_name};
+
+            my @sections = $self->section($section_name);
+            my $section;
+            if(@sections)
             {
-                # get subsection object
-                my $sub = bless({});
-                $sub->{level}     = sprintf(q(%s->{'%s'}->{'%s'}), $self->{level}, $section, $entry);
-                $sub->{top}       = $top;
-                $sub->{parent}    = $self;
-                $sub->{type}      = 'section';
-                $sub->{name}      = $section;
-                $sub->{value}     = $entry;
-                $sub->{to_string} = $sub->{value};
-                return($sub);
+                if(length $which)
+                {
+                    my $n = 1;
+                    foreach $section (@sections)
+                    {
+                        next unless $section->value eq $entry;
+                        return $section if $n++ == $which;
+                    }
+                }
+                else
+                {
+                    foreach $section (reverse @sections)
+                    {
+                        return $section if $section->value eq $entry;
+                    }
+                }
             }
-            else
-            {
-                return($self->_set_error('section or entry doesn\'t exists'));
-            }
+            return $self->_set_error
+            (
+                "section entry `<$section_name $entry>' doesn\'t exists".
+                (length $which ? " at `$which' position" : '')
+            );
         }
         else
         {
-            return($self->_set_error('section doesn\'t exists')) unless($root->{$section});
+            return($self->_set_error("section `$section_name' doesn\'t exists"))
+                unless($root->{_sections_counter}->{$section_name});
 
             my @section_values;
             my $n = 0;
             foreach(@{$root->{_sorted_sections}})
             {
-                next unless($_->[0] eq $section);
-                if($which ne '')
+                next unless($_->[0] eq $section_name);
+                if(length $which)
                 {
                     next unless $n++ == $which;
                 }
 
-                my $section = $_->[0];
-                my $entry   = $_->[1];
+                my($sec_name, $sec_val, $sec_id) = @$_;
+                my $section_tag = _type($sec_name, 'section', $sec_val, $sec_id);
                 my $sub = bless({});
-                $sub->{level}     = sprintf(q(%s->{'%s'}->{'%s'}), $self->{level}, $section, $entry);
+                $sub->{level}     = sprintf(q(%s->{'%s'}), $self->{level}, $section_tag);
                 $sub->{top}       = $top;
                 $sub->{parent}    = $self;
                 $sub->{type}      = 'section';
-                $sub->{name}      = $section;
-                $sub->{value}     = $entry;
+                $sub->{name}      = $section_tag;
+                $sub->{value}     = $sec_val;
                 $sub->{to_string} = $sub->{value};
 
                 $which eq '' ? push(@section_values, $sub) : return $sub;
@@ -486,22 +529,22 @@ sub section
     }
     else
     {
-        if($which eq '')
+        if(not length $which)
         {
             my @sections;
             for(my $n = $#{$root->{_sorted_sections}}; $n >= 0; $n--)
             {
                 my $s = $root->{_sorted_sections}->[$n];
-                my $section = $s->[0];
-                my $entry   = $s->[1];
+                my($sec_name, $sec_val, $sec_id) = @$s;
+                my $section_tag = _type($sec_name, 'section', $sec_val, $sec_id);
                 my $sub = bless({});
-                $sub->{level}     = sprintf(q(%s->{'%s'}->{'%s'}), $self->{level}, $section, $entry);
+                $sub->{level}     = sprintf(q(%s->{'%s'}), $self->{level}, $section_tag);
                 $sub->{top}       = $top;
                 $sub->{parent}    = $self;
                 $sub->{type}      = 'section';
-                $sub->{name}      = $section;
-                $sub->{value}     = $entry;
-                $sub->{to_string} = _untype($sub->{name}, 'section');
+                $sub->{name}      = $section_tag;
+                $sub->{value}     = $sec_val;
+                $sub->{to_string} = $sec_name;
 
                 # with new api, we have to return the last element in scalar context like normal
                 # list in scalar context. So we don't bless all unwanted objects instances.
@@ -516,21 +559,22 @@ sub section
         {
             if(defined $root->{_sorted_sections}->[$which])
             {
-                my $section = $root->{_sorted_sections}->[$which]->[0];
-                my $entry   = $root->{_sorted_sections}->[$which]->[1];
+                my($sec_name, $sec_val, $sec_id) = @{$root->{_sorted_sections}->[$which]};
+                my $section_tag = _type($sec_name, 'section', $sec_val, $sec_id);
+
                 my $sub = bless({});
-                $sub->{level}     = sprintf(q(%s->{'%s'}->{'%s'}), $self->{level}, $section, $entry);
+                $sub->{level}     = sprintf(q(%s->{'%s'}), $self->{level}, $section_tag);
                 $sub->{top}       = $top;
                 $sub->{parent}    = $self;
                 $sub->{type}      = 'section';
-                $sub->{name}      = $section;
-                $sub->{value}     = $entry;
-                $sub->{to_string} = _untype($sub->{name}, 'section');
+                $sub->{name}      = $section_tag;
+                $sub->{value}     = $sec_val;
+                $sub->{to_string} = $sec_name;
                 return $sub;
             }
             else
             {
-                return $self->_set_error('section doesn\'t exists');
+                return $self->_set_error("section doesn\'t exists at index `$which'");
             }
         }
     }
@@ -1220,16 +1264,28 @@ sub _root
 
 sub _type
 {
-    my($name, $type) = @_;
-    return(uc(substr($type, 0, 1)) . $name);
+    my($name, $type, $value, $which) = @_;
+    my $tag = uc(substr($type, 0, 1));
+    if($tag eq 'S')
+    {
+        $which ||= 1;
+        $tag .= $which.':'.$name.'='.$value;
+    }
+    else
+    {
+        $tag .= ":$name";
+    }
+    return $tag;
 }
 
 sub _untype
 {
     my($name, $type) = @_;
-    if(index($name, uc(substr($type, 0, 1))) == 0)
+    $type = uc(substr($type, 0, 1));
+    if(index($name, $type) == 0)
     {
-        return(substr($name, 1, length($name)));
+        my $value = substr($name, index($name, ':')+1, length $name);
+        return $type eq 'S' ? (split(/=/, $value, 2))[0] : $value;
     }
     else
     {
@@ -1292,27 +1348,41 @@ sub _parse
         elsif($line =~ /^<\s*(\w+)(?:\s+([^>]+)|\s*)>$/)
         {
             # it's a section opening
-            my $section = _type(lc($1), 'section'); # we add an S in front of section for isolate it from directives
+            my $section_name = lc $1;
+            my $current_level = $level[-1];
+            # increment the section counter of same name on same level, used for
+            # select which homonyme section we talk about
+            my $which = ++$current_level->{_sections_counter}->{$section_name};
+            # we add an S in front of section for isolate it from directives 
+            # (followed by the section counter for isolate same named sections)
             my $value = defined $2 ? $2 : '';
             $value =~ s/^\s*|\s*$//g;
-            # section exists, but is not a section !
-            return $self->_set_error(sprintf('%s: syntax error at line %d', $file, $n+1))
-                if(defined $level[-1]->{$section} && ref($level[-1]->{$section}) ne 'HASH');
+            my $section_tag = _type($section_name, 'section', $value, $which);
 
-            push(@level, $level[-1]->{$section}->{$value} ||= {});
-            push(@{$level[-1]->{_pos}}, \@_pos); # save the line number of this section
-            push(@last_section, $section);
+            push(@level, $current_level->{$section_tag} ||= {});
+            # not same as $current_level !
+            my $current_section_level = $level[-1];
+            # save the line number of this section
+            push(@{$current_section_level->{_pos}}, \@_pos);
+            push(@last_section, $section_name);
 
             # keep apparence's order of sections
-            push(@{$level[-2]->{_sorted_sections}}, [$section, $value, keys(%{$level[-2]->{$section}})-1]);
+            push
+            (
+                @{$current_level->{_sorted_sections}},
+                [$section_name, $value, $which]
+            );
         }
         elsif($line =~ /^<\/\s*(\w+)\s*>$/)
         {
             # it's a section closing
-            my $section = _type(lc($1), 'section'); # we add an S in front of section for isolate it from directives
+            my $section_name = lc $1;
+            my $current_section_level = $level[-1];
+            # we add an S in front of section for isolate it from directives
+            # (followed by the section counter for isolate same named sections)
             return $self->_set_error(sprintf('%s: syntax error at line %d', $file, $n+1)) 
-              if(!@last_section || $section ne $last_section[-1]);
-            push(@{$level[-1]->{_pos}}, \@_pos); # save last line of section
+              if(!@last_section || $section_name ne $last_section[-1]);
+            push(@{$current_section_level->{_pos}}, \@_pos); # save last line of section
             pop(@last_section);
             pop(@level);
         }
@@ -1343,7 +1413,7 @@ sub _get_arg
         foreach my $name (split(/\|/, $motif))
         {
             my $boolean = ($name =~ s/\!$//);
-            if($args->[$n] eq $name)
+            if(defined $args->[$n] && $args->[$n] eq $name)
             {
                 return(undef) if(!$boolean && $n+1 >= @$args); # malformed argument
                 my $value = splice(@$args, $n, ($boolean?1:2));
@@ -1410,17 +1480,57 @@ DESTROY
 
 =pod
 
+=head1 EXAMPLES
+
+    #
+    # Managing virtual-hosts:
+    #
+    
+    my $conf = new Apache::Admin::Config "/etc/apache/httpd.conf";
+
+    # adding a new virtual-host:
+    my $vhost = $conf->add_section(VirtualHost=>'127.0.0.1');
+    $vhost->add_directive(ServerAdmin=>'webmaster@localhost.localdomain');
+    $vhost->add_directive(DocumentRoot=>'/usr/share/www');
+    $vhost->add_directive(ServerName=>'www.localhost.localdomain');
+    $vhost->add_directive(ErrorLog=>'/var/log/apache/www-error.log');
+    my $location = $vhost->add_section(Location=>'/admin');
+    $location->add_directive(AuthType=>'basic');
+    $location->add_directive(Require=>'group admin');
+    $conf->save;
+
+    # selecting a virtual-host:
+    my $vhost;
+    foreach my $vh (@{$conf->section('VirtualHost')})
+    {
+        if($vh->directive('ServerName')->value eq 'www.localhost.localdomain')
+        {
+            $vhost = $vh;
+            last;
+        }
+    }
+
 =head1 AUTHOR
 
 Olivier Poitrey E<lt>rs@rhapsodyk.netE<gt>
 
 =head1 AVAILABILITY
 
-The official FTP location is :
+The official FTP location is:
 
 B<ftp://ftp.rhapsodyk.net/pub/devel/perl/Apache-Admin-Config-current.tar.gz>
 
 Also available on CPAN.
+
+anonymous CVS repository:
+
+CVS_RSH=ssh cvs -d anonymous@cvs.rhapsodyk.net:/devel co Apache-Admin-Config
+
+(supply an empty string as password)
+
+CVS repository on the web:
+
+http://www.rhapsodyk.net/cgi-bin/cvsweb/Apache-Admin-Config/
 
 =head1 LICENCE
 

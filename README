@@ -1,4 +1,4 @@
-Apache::Admin::Config 0.14
+Apache::Admin::Config 0.16
 ==========================
 
 INSTALLATION
@@ -15,6 +15,10 @@ UPGRADING FROM PREVIOUS VERSIONS
 * Upgrading from version 0.08 or earlier: read UPGRADE-0.10
 
 CHANGES
+
+0.16 Thu Apr 11 16:44:53 2002
+        - Major bugfix: no longer merging namespace of identical 
+          sections (same name/value)
 
 0.15 Tue Dec 11 14:18:07 2001
         - Minor bugfix: add_(section|directive) with option -onbottom
@@ -250,7 +254,6 @@ DESCRIPTION
 
 METHODES
   new ([*/path/to/file*|*handle*], -oldapi=>*0|1*)
-
     Create or read, if given in argument, an apache like configuration file.
 
     Arguments:
@@ -272,7 +275,6 @@ METHODES
         for more details. Default is false.
 
   save ([*/path/to/file*|*HANDLE*])
-
     Write modifications to the configuration file. If a path to a file is
     given, save the modification to this file instead. You also can give a
     reference to a filehandle like this :
@@ -280,12 +282,10 @@ METHODES
         $conf->save(\*MYHANDLE) or die($conf->error);
 
   dump_raw
-
     Return the configuration file as same as it will be if it saved in a
     file with the save() method.
 
   add_section (*name*=>*'value'*, [-before=>*target* | -after=>*target* | -ontop | -onbottom])
-
         $obj->add_section(foo=>'bar', -after=>$obj->directive('oof', -which=>-1));
 
     Add the directive *foo* with value *bar* in the context pointed by $obj.
@@ -313,7 +313,6 @@ METHODES
     Return the added section
 
   section ([[*name*], *value*], [-which=>*number*])
-
         @sections_list      = $obj->section;
         @section_values     = $obj->section(SectionName);
         $section_object     = $obj->section(SectionName=>'value');
@@ -339,7 +338,6 @@ METHODES
         *bar* if arguments given was *foo* and *bar*.
 
   add_directive (*name*=>*'value'*, [-before=>*target* | -after=>*target* | -ontop | -onbottom])
-
         $obj->add_directive(foo=>'bar', -after=>$obj->directive('oof', -which=>-1));
 
     Add the directive *foo* with value *bar* in the context pointed by $obj.
@@ -367,7 +365,6 @@ METHODES
     Return the added directive.
 
   directive ([[*name*], *value*], [-which=>*number*])
-
         @directives_list    = $obj->directive;
         @directive_values   = $obj->directive(Foo);
         $directvie_object   = $obj->directive(Foo=>'bar');
@@ -399,7 +396,6 @@ METHODES
         future versions.
 
   delete ()
-
         $htconf->directive('AddType'=>'.pl')->delete;
         $htconf->section('File'=>'/path/to/file')->delete;
 
@@ -407,24 +403,20 @@ METHODES
     section.
 
   set_value (*newvalue*)
-
         $htconf->directive('File'=>'/path/to/foo')->set_value('/path/to/bar');
 
     Change the value of a directive or section. If no argument given, return
     the value of object $htconf.
 
   value ()
-
     Return the value of rule pointed by the object if any.
 
     ("value" and "set_value" are the same method)
 
   move (-before=>*target* | -after=>*target* | -replace=>*target* | -tofirst | -tolast)
-
     under construction
 
   name ()
-
     Return the name of the current pointed directive or section. return
     undef if object point to the top context:
 
@@ -435,7 +427,6 @@ METHODES
         $obj->section(Foo, -which=>0)->name; return "Foo"
 
   lines ()
-
     * If the caller object point to a directive :
 
       Return a list of lines'number occuped by the object's directive. If
@@ -469,17 +460,13 @@ METHODES
           $obj->directive(VirtualHost, -which=>x)->lines # return ([18, 19, 20], [22], [50], [53])
 
   first_line ()
-
   last_line ()
-
   dump_line *line_number*
-
         $obj->dump_line($directive->first_line);
 
     Dump the *line_number* line of current parsed configuration.
 
   isin ($section_obj, [-recursif])
-
     Return true if object point to a rule that is in the section represented
     by $section_obj. If "-recursif" option is present, true is also return
     if object is a sub-section of target.
@@ -495,29 +482,66 @@ METHODES
         $test_directive->isin($target_section, '-recursif') => return true
 
   parent ()
-
     Return the parent context of object.
 
     $obj is same as $obj->directive(-which=>0)->parent
 
   type ()
-
     Return the type of object. Types can be 'directive', 'section' or 'top'.
 
   error ()
-
     Return the last append error.
+
+EXAMPLES
+        #
+        # Managing virtual-hosts:
+        #
+    
+        my $conf = new Apache::Admin::Config "/etc/apache/httpd.conf";
+
+        # adding a new virtual-host:
+        my $vhost = $conf->add_section(VirtualHost=>'127.0.0.1');
+        $vhost->add_directive(ServerAdmin=>'webmaster@localhost.localdomain');
+        $vhost->add_directive(DocumentRoot=>'/usr/share/www');
+        $vhost->add_directive(ServerName=>'www.localhost.localdomain');
+        $vhost->add_directive(ErrorLog=>'/var/log/apache/www-error.log');
+        my $location = $vhost->add_section(Location=>'/admin');
+        $location->add_directive(AuthType=>'basic');
+        $location->add_directive(Require=>'group admin');
+        $conf->save;
+
+        # selecting a virtual-host:
+        my $vhost;
+        foreach my $vh (@{$conf->section('VirtualHost')})
+        {
+            if($vh->directive('ServerName')->value eq 'www.localhost.localdomain')
+            {
+                $vhost = $vh;
+                last;
+            }
+        }
 
 AUTHOR
     Olivier Poitrey <rs@rhapsodyk.net>
 
 AVAILABILITY
-    The official FTP location is :
+    The official FTP location is:
 
     ftp://ftp.rhapsodyk.net/pub/devel/perl/Apache-Admin-Config-current.tar.g
     z
 
     Also available on CPAN.
+
+    anonymous CVS repository:
+
+    CVS_RSH=ssh cvs -d anonymous@cvs.rhapsodyk.net:/devel co
+    Apache-Admin-Config
+
+    (supply an empty string as password)
+
+    CVS repository on the web:
+
+    http://www.rhapsodyk.net/cgi-bin/cvsweb/Apache-Admin-Config/
 
 LICENCE
     This program is free software; you can redistribute it and/or modify it

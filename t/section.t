@@ -4,7 +4,7 @@ BEGIN
 {
     use strict;
     use Test;
-    plan test => 6;
+    plan test => 7;
 }
 
 use Apache::Admin::Config;
@@ -22,3 +22,6 @@ ok(@secvals, 4);
 my $obj = $secvals[0];
 ok(defined $obj);
 ok($obj->value, $secvals[0]);
+
+my $root = $apache->section(directory=>'/');
+ok(defined $root);
