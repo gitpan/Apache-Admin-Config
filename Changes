@@ -1,5 +1,12 @@
 Revision history for Perl extension Apache::Admin::Config.
 
+0.52 Mon Jul 15 14:01:11 CEST 2002
+        - Correct a big memory leak problem (thanks to Scott Beck)
+        - Misc bugfix
+
+0.51 Fri Jun  7 19:12:02 CEST 2002
+        - Bugfix in select method
+
 0.50 Fri Jun  7 18:25:39 CEST 2002
         - Many major bugfix
         - Complete rewrite of module with new algorithm

@@ -1,4 +1,4 @@
-Apache::Admin::Config 0.50
+Apache::Admin::Config 0.52
 ==========================
 
 INSTALLATION
@@ -15,6 +15,13 @@ UPGRADING FROM PREVIOUS VERSIONS
 * Upgrading from version 0.08 or earlier: read UPGRADE-0.10
 
 CHANGES
+
+0.52 Mon Jul 15 14:01:11 CEST 2002
+        - Correct a big memory leak problem (thanks to Scott Beck)
+        - Misc bugfix
+
+0.51 Fri Jun  7 19:12:02 CEST 2002
+        - Bugfix in select method
 
 0.50 Fri Jun  7 18:25:39 CEST 2002
         - Many major bugfix

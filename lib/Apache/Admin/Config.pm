@@ -1,15 +1,10 @@
 package Apache::Admin::Config;
 
-BEGIN
-{
-    use 5.005;
-    use strict;
-    use FileHandle;
-    use overload nomethod => \&to_string;
+use 5.005;
+use strict;
 
-    $Apache::Admin::Config::VERSION = '0.50';
-    $Apache::Admin::Config::DEBUG   = 0;
-}
+$Apache::Admin::Config::VERSION = '0.52';
+$Apache::Admin::Config::DEBUG   = 0;
 
 =pod
 
@@ -200,29 +195,33 @@ padding with tabulation(s).
 
 =cut
 
-sub new 
+# We wrap the whole module part because we manipulate a tree with circular
+# references. Because of the way perl's garbage collector works, we have to
+# isolate circular reference in another package to be able to destroy circular
+# reference before the garbage collector try to destroy the tree.
+# Without this mechanism, the DESTROY event will never be called.
+
+sub new
 {
-    my $pkg  = shift;
-    my $self = bless({}, ref($pkg) || $pkg);
+    my $proto = shift;
+    my $class = ref $proto || $proto;
+    my $self  = {};
+    bless $self, $class;
 
-    $self->{indent} = _get_arg(\@_, '-indent');
-    
-    $self->{htaccess} = $htaccess = shift;
-
-    $self->{top}     = $self;
-    $self->{type}    = 'section';
-    $self->{parent}  = undef;
+    my $htaccess = shift;
+    my $tree = $self->{tree} = new Apache::Admin::Config::Tree(@_)
+        or return;
 
     if(defined $htaccess && (ref $htaccess eq 'GLOB' || -f $htaccess)) # trying to handle GLOBs
     {
-        $self->_load || return undef;
+        $tree->_load($htaccess) || return undef;
     }
     else # if htaccess doesn't exists, init new one
     {
-        $self->_init || return undef;
+        $tree->_init || return undef;
     }
-    
-    return($self);
+ 
+    return $self;
 }
 
 =pod
@@ -242,9 +241,6 @@ a filehandle like this :
 sub save
 {
     my($self, $saveas) = @_;
-
-    return $self->_set_error('only top level object can call save method')
-        if defined $self->{parent};
 
     my $htaccess = defined $saveas ? $saveas : $self->{htaccess};
 
@@ -266,6 +262,47 @@ sub save
     print $fh $self->dump_raw;
 
     return 1;
+}
+
+
+
+sub AUTOLOAD
+{
+    # redirect all method to the right package
+    my $self  = shift;
+    my($func) = $Apache::Admin::Config::AUTOLOAD =~ /[^:]+$/g;
+    return $self->{tree}->$func(@_);
+}
+
+sub DESTROY
+{
+    shift->{tree}->destroy;
+}
+
+package Apache::Admin::Config::Tree;
+
+use strict;
+use Carp;
+use FileHandle;
+use overload nomethod => \&to_string;
+
+
+sub new 
+{
+    my $proto = shift;
+    my $class = ref $proto || $proto;
+    my $self  = {};
+    bless($self, $class);
+
+    $self->{indent} = _get_arg(\@_, '-indent');
+
+    # init the tree
+    $self->{top}     = $self;
+    $self->{type}    = 'section';
+    $self->{parent}  = undef;
+    $self->{childs}  = [];
+   
+    return($self);
 }
 
 =pod
@@ -367,7 +404,7 @@ sub select
     return $self->_set_error('method not allowed')
         unless $self->{type} eq 'section';
 
-    $name = lc $name if defined $name;
+    $args{name} = lc $args{name} if defined $args{name};
 
     my @childs = @{$self->{childs}};
 
@@ -410,7 +447,7 @@ sub select
         # in scalar context, returning an array is same as returning the number
         # of ellements in it, but we want return the _last_ element like a list
         # do une scalar context. If you have a better/nicer idea...
-        return(@items[0 .. $#items]);
+        return(@items ? @items[0 .. $#items] : ());
     }
 }
 
@@ -573,6 +610,8 @@ sub add
     my $self = shift;
 
     my($target, $where) = _get_arg(\@_, '-before|-after|-ontop!|-onbottom!');
+    
+    $target = $target->{tree} if ref $target eq 'Apache::Admin::Config';
 
     # _get_arg return undef on error or empty string on not founded rule
     return($self->_set_error('malformed arguments'))
@@ -588,7 +627,7 @@ sub add
     if(($where eq '-before' || $where eq '-after') && defined $target)
     {
         return $self->_set_error("target `$target' isn\'t an object")
-            unless ref $target && $target->isa(Apache::Admin::Config);
+            unless ref $target && $target->isa('Apache::Admin::Config::Tree');
         return $self->_set_error('invalid target context')
             unless $target->isin($self);
     }
@@ -857,10 +896,11 @@ sub isin
     my $self     = shift;
     my $recursif = _get_arg(\@_, '-recursif!');
     my $target   = shift || return $self->_set_error('too few arguments');
+    $target = $target->{tree} if ref $target eq 'Apache::Admin::Config';
     return($self->_set_error('method not allowed'))
         unless(defined $self->{parent});
     return($self->_set_error('target is not an object of myself'))
-        unless(ref $target && $target->isa(Apache::Admin::Config));
+        unless(ref $target && $target->isa('Apache::Admin::Config::Tree'));
     return($self->_set_error('wrong type for target'))
         unless($target->{type} eq 'section');
 
@@ -884,13 +924,53 @@ sub isin
 sub to_string
 {
     my($self, $other, $inv, $meth) = @_;
-    return overload::StrVal($self) unless defined $self->{value};
 
-    if($meth eq 'eq')       { return($other ne $self->{value}); }
-    elsif($meth eq 'ne')    { return($other ne $self->{value}); }
-
-    return $self->{value};
+    if($meth eq 'eq')
+    {
+        if($^W and (!defined $other or !defined $self->{value}))
+        {                                                                                
+            carp "Use of uninitialized value in string eq";
+        }   
+        local $^W;
+        return($other ne $self->{value});
+    }   
+    elsif($meth eq 'ne')                                                                 
+    {
+        if($^W and (!defined $other or !defined $self->{value}))
+        {                                                                                
+            carp "Use of uninitialized value in string ne";
+        }   
+        local $^W;
+        return($other ne $self->{value});
+    }   
+    elsif($meth eq '==')
+    {
+        if($^W and (!defined $other or !defined $self->{value}))
+        {
+            carp "Use of uninitialized value in numeric eq (==)";
+        }   
+        local $^W;
+        return($other != $self->{value});
+    }   
+    elsif($meth eq '!=')
+    {
+        if($^W and (!defined $other or !defined $self->{value}))
+        {                                                       
+            carp "Use of uninitialized value in numeric ne (!=)";
+        }                                                        
+        local $^W;
+        return($other != $self->{value});
+    }
+    elsif(!defined $self->{value})
+    {
+        return overload::StrVal($self);
+    }
+    else
+    {
+        return $self->{value};
+    }
 }
+
 
 =pod
 
@@ -920,6 +1000,17 @@ sub parent
 sub type
 {
     return $_[0]->{type};
+}
+
+sub destroy
+{
+    my($self) = @_;
+    delete $self->{top};
+    delete $self->{parent};
+    foreach(@{$self->{childs}})
+    {
+        $_->destroy;
+    }
 }
 
 =pod
@@ -1210,8 +1301,7 @@ sub _init
 
 sub _load
 {
-    my $self = shift;
-    my $htaccess = $self->{htaccess};
+    my($self, $htaccess) = @_;
     my @htaccess;
     my $fh;
 
@@ -1225,6 +1315,7 @@ sub _load
         $fh = new FileHandle($htaccess) or return $self->_set_error("can't open `$htaccess' file for reading");
     }
     
+    $self->{htaccess} = $htaccess;
     return $self->_parse($fh);
 }
 
