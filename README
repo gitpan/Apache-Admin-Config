@@ -1,5 +1,5 @@
-Apache::Admin::Config version 0.05
-=========================
+Apache::Admin::Config 0.07
+==========================
 
 INSTALLATION
 
@@ -12,18 +12,24 @@ To install this module type the following:
 
 CHANGES
 
+0.07  Thu Sep 20 02:36:17 2001
+        - Major change, section and directive methods no any longer 
+          return an arrayref in list context but a simple list.
+          Documentation corrected (thanx to Nathan Wiger for this 
+          suggestion).
+
 0.06  Tue Sep 18 01:09:24 2001
         - Make a quick and dirty documentation
         - value() return the context value if no arguments given
-        - new() can be called without argument, save() need an argument in this
-          case
+        - new() can be called without argument, save() need an 
+          argument in this case
 
 0.05  Sat Aug 18 14:39:45 2001
         - Major bug fix, if config file wasn't exists, module won't work !
-        - Bug fix, value method wasn't took the appropriate value for change it, resulted
-          to an unchanged value
-        - Bug fix, $master and $root value was undefined in value method, so value wasn't
-          work at all
+        - Bug fix, value method wasn't took the appropriate value for change
+          it, resulted to an unchanged value
+        - Bug fix, $master and $root value was undefined in value method,
+          so value wasn't work at all
 
 0.04  Fri Aug 17 01:42:16 2001
         - Fix a minor bug in directive method.
@@ -33,8 +39,9 @@ CHANGES
 
 0.02  Thu Aug 16 01:48:54 2001
         - Put module on CPAN
-        - Fix a very major bug that cause "syntax error" from parser on directives with
-          no value like "clearmodulelist", thanx A2 for this report.
+        - Fix a very major bug that cause "syntax error" from parser on 
+          directives with no value like "clearmodulelist", thanx A2 for
+          this report.
 
 0.01  Sun Aug 12 11:58:10 2001
 	- Original version; created by h2xs 1.21 with options -AX -n Apache::Admin
@@ -50,16 +57,18 @@ SYNOPSIS
             || die $Apache::Admin::Config::ERROR;
 
         # getting the full list of directives in current context die if error
-        my @directives_list = @{ $obj->directive || die $obj->error };
+        # (don't use || instead of "or" here !!)
+        my @directives_list = $obj->directive or die $obj->error;
 
-        # getting the full list of sections in current context or die if error
-        my @sections_list = @{ $obj->section || dit $obj->error };
+        # getting the full list of sections in current context or die if error 
+        # (don't use || instead of "or" here !!)
+        my @sections_list = $obj->section or die $obj->error;
 
         # getting values' list of directive "Foo"
-        my @foo_directive_values = @{ $obj->directive('Foo') };
+        my @foo_directive_values = $obj->directive('Foo');
 
         # getting values' list of section "Foo"
-        my @foo_section_values = @{ $obj->section('Foo') };
+        my @foo_section_values = $obj->section('Foo');
     
         # adding directive "Foo" with value "bar" in the current context
         $obj->add_directive(Foo=>'bar');
@@ -117,8 +126,8 @@ METHODES
 
   section [name], [value]
 
-        @sections_list      = @{ $obj->section };
-        @section_values     = @{ $obj->section(SectionName) };
+        @sections_list      = $obj->section;
+        @section_values     = $obj->section(SectionName);
         $section_object     = $obj->section(SectionName=>'value');
 
     arguments:
@@ -128,11 +137,12 @@ METHODES
 
     This method return :
 
-    -   list of sections in current context - as an array reference - if no
-        argument is given.
+    -   list of sections in current context if no argument is given.
 
-    -   list of sections "foo"'s values - as an array reference - if the
-        only argument is "foo"
+    -   list of sections "foo"'s values if the only argument is "foo".
+
+        return a list in list context and a reference to an array in scalar
+        context.
 
     -   an object for the context pointed by the section "foo" with value
         "bar" if arguments given was "foo" and "bar".
@@ -155,11 +165,16 @@ METHODES
 
     This method return :
 
-    -   list of directives in context pointed by $obj - as an array
-        reference - if no argument is given.
+    -   list of directives in context pointed by $obj if no argument is
+        given.
 
-    -   list of "foo" directive's values - as an array reference - if the
-        only argument is "foo".
+        return a list in list context and a reference to an array in scalar
+        context.
+
+    -   list of "foo" directive's values if the only argument is "foo".
+
+        return a list in list context and a reference to an array in scalar
+        context.
 
     -   an object for manipulating directive called "foo" with value "bar"
         if arguments given was "foo" and "bar". Warning, if several
@@ -209,12 +224,23 @@ COPYRIGHT
 
 HISTORY
     $Log: README,v $
-    Revision 1.9  2001/09/17 23:14:44  rs
-    => 0.06
- Revision 1.16 2001/09/17 23:12:53 rs Make a real
-    quick and dirty documentation value() now return the context value if
-    called without arguments new() can now be called without arguments,
-    save() need one in this case
+    Revision 1.11  2001/09/20 00:52:26  rs
+    *** empty log message ***
+
+    Revision 1.10  2001/09/20 00:51:55  rs
+    on the way of O.07 release
+ Revision 1.20 2001/09/20 00:43:31 rs don't confuse
+    array and list !
+
+    Revision 1.18 2001/09/20 00:25:59 rs section and directive now return an
+    array if called in array context
+
+    Revision 1.17 2001/09/17 23:44:06 rs minor bugfix
+
+    Revision 1.16 2001/09/17 23:12:53 rs Make a real quick and dirty
+    documentation value() now return the context value if called without
+    arguments new() can now be called without arguments, save() need one in
+    this case
 
     Revision 1.15 2001/08/23 01:05:35 rs update of documentation's
     DESCRIPTION section

@@ -1,17 +1,23 @@
 Revision history for Perl extension Apache::Admin::Config.
 
+0.07  Thu Sep 20 02:36:17 2001
+        - Major change, section and directive methods no any longer 
+          return an arrayref in list context but a simple list.
+          Documentation corrected (thanx to Nathan Wiger for this 
+          suggestion).
+
 0.06  Tue Sep 18 01:09:24 2001
         - Make a quick and dirty documentation
         - value() return the context value if no arguments given
-        - new() can be called without argument, save() need an argument in this
-          case
+        - new() can be called without argument, save() need an 
+          argument in this case
 
 0.05  Sat Aug 18 14:39:45 2001
         - Major bug fix, if config file wasn't exists, module won't work !
-        - Bug fix, value method wasn't took the appropriate value for change it, resulted
-          to an unchanged value
-        - Bug fix, $master and $root value was undefined in value method, so value wasn't
-          work at all
+        - Bug fix, value method wasn't took the appropriate value for change
+          it, resulted to an unchanged value
+        - Bug fix, $master and $root value was undefined in value method,
+          so value wasn't work at all
 
 0.04  Fri Aug 17 01:42:16 2001
         - Fix a minor bug in directive method.
@@ -21,8 +27,9 @@ Revision history for Perl extension Apache::Admin::Config.
 
 0.02  Thu Aug 16 01:48:54 2001
         - Put module on CPAN
-        - Fix a very major bug that cause "syntax error" from parser on directives with
-          no value like "clearmodulelist", thanx A2 for this report.
+        - Fix a very major bug that cause "syntax error" from parser on 
+          directives with no value like "clearmodulelist", thanx A2 for
+          this report.
 
 0.01  Sun Aug 12 11:58:10 2001
 	- Original version; created by h2xs 1.21 with options -AX -n Apache::Admin

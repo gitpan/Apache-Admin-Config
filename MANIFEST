@@ -3,3 +3,5 @@ Changes
 Makefile.PL
 MANIFEST
 README
+t/section.t
+t/directive.t

@@ -5,7 +5,7 @@ BEGIN
     use 5.005;
     use strict;
 
-    $Apache::Admin::Config::VERSION = '0.06';
+    $Apache::Admin::Config::VERSION = '0.07';
     $Apache::Admin::Config::DEBUG   = 0;
 }
 
@@ -24,17 +24,19 @@ Apache::Admin::Config - A common module to manipulate Apache configuration files
         || die $Apache::Admin::Config::ERROR;
 
     # getting the full list of directives in current context die if error
-    my @directives_list = @{ $obj->directive || die $obj->error };
+    # (don't use || instead of "or" here !!)
+    my @directives_list = $obj->directive or die $obj->error;
 
-    # getting the full list of sections in current context or die if error
-    my @sections_list = @{ $obj->section || dit $obj->error };
+    # getting the full list of sections in current context or die if error 
+    # (don't use || instead of "or" here !!)
+    my @sections_list = $obj->section or die $obj->error;
 
 
     # getting values' list of directive "Foo"
-    my @foo_directive_values = @{ $obj->directive('Foo') };
+    my @foo_directive_values = $obj->directive('Foo');
 
     # getting values' list of section "Foo"
-    my @foo_section_values = @{ $obj->section('Foo') };
+    my @foo_section_values = $obj->section('Foo');
     
 
     # adding directive "Foo" with value "bar" in the current context
@@ -174,8 +176,8 @@ sub add_section
 
 =head2 section [name], [value]
 
-    @sections_list      = @{ $obj->section };
-    @section_values     = @{ $obj->section(SectionName) };
+    @sections_list      = $obj->section;
+    @section_values     = $obj->section(SectionName);
     $section_object     = $obj->section(SectionName=>'value');
 
 arguments:
@@ -189,11 +191,14 @@ This method return :
 
 =item -
 
-list of sections in current context - as an array reference - if no argument is given.
+list of sections in current context if no argument is given.
+
 
 =item -
 
-list of sections "foo"'s values - as an array reference - if the only argument is "foo"
+list of sections "foo"'s values if the only argument is "foo".
+
+return a list in list context and a reference to an array in scalar context.
 
 =item -
 
@@ -212,52 +217,56 @@ sub section
     my $master  = $self->{master};
     my $root    = $self->_root || return undef;
 
-    if(defined $section && defined $entry)
+    if(defined $section)
     {
-        if(defined($add) && $add)
+        if(defined $entry)
         {
-            # add
-            return($self->_set_error('can\'t add section, it already exists'))
-              if(defined $root->{$section} && defined $root->{$section}->{$entry});
+            if(defined($add) && $add)
+            {
+                # add
+                return($self->_set_error('can\'t add section, it already exists'))
+                  if(defined $root->{$section} && defined $root->{$section}->{$entry});
+                
+                my $n = $root->{$section} ? $root->{$section}->{$entry}->{_pos}->[-1]->[-1] :
+                $root->{_pos} ? $root->{_pos}->[-1]->[-1] : @{$master->{contents_raw}};
+                
+                splice(@{$master->{contents_raw}}, $n, 0, $self->write_section($section, $entry), $self->write_section_closer($section));
+                $self->_parse;
+                $root = $self->_root;
+            }
             
-            my $n = $root->{$section} ? $root->{$section}->{$entry}->{_pos}->[-1]->[-1] :
-            $root->{_pos} ? $root->{_pos}->[-1]->[-1] : @{$master->{contents_raw}};
-            
-            splice(@{$master->{contents_raw}}, $n, 0, $self->write_section($section, $entry), $self->write_section_closer($section));
-            $self->_parse;
-            $root = $self->_root;
-        }
-        
-        if(defined $root->{$section} && defined $root->{$section}->{$entry})
-        {
-            # get subsection object
-            my $sub = bless({});
-            $sub->{level}  .= $self->{level} . "->{'$section'}->{'$entry'}";
-            $sub->{master}  = $master;
-            $sub->{type}    = 'section';
-            $sub->{name}    = $section;
-            $sub->{value}   = $entry;
-            return($sub);
+            if(defined $root->{$section} && defined $root->{$section}->{$entry})
+            {
+                # get subsection object
+                my $sub = bless({});
+                $sub->{level}  .= $self->{level} . "->{'$section'}->{'$entry'}";
+                $sub->{master}  = $master;
+                $sub->{type}    = 'section';
+                $sub->{name}    = $section;
+                $sub->{value}   = $entry;
+                return($sub);
+            }
+            else
+            {
+                return($self->_set_error('section or entry doesn\'t exists'));
+            }
         }
         else
         {
-            return($self->_set_error('section or entry doesn\'t exists'));
+            return($self->_set_error('section doesn\'t exists')) unless($root->{$section});
+            my @section_values = keys %{$root->{$section}};
+            return(wantarray ? @section_values : \@section_values);
         }
-    }
-    elsif(defined $section)
-    {
-        return($self->_set_error('section doesn\'t exists')) unless($root->{$section});
-        return([keys %{$root->{$section}}]);
     }
     else
     {
-        my @section;
+        my @sections;
         foreach my $k (keys %$root)
         {
             next if($k eq '_pos');
-            push(@section, $k) if(ref($root->{$k}) eq 'HASH');
+            push(@sections, $k) if(ref($root->{$k}) eq 'HASH');
         }
-        return(\@section);
+        return(wantarray ? @sections : \@sections);
     }
 }
 
@@ -304,11 +313,15 @@ This method return :
 
 =item -
 
-list of directives in context pointed by $obj - as an array reference - if no argument is given.
+list of directives in context pointed by $obj if no argument is given.
+
+return a list in list context and a reference to an array in scalar context.
 
 =item -
 
-list of "foo" directive's values - as an array reference - if the only argument is "foo".
+list of "foo" directive's values if the only argument is "foo".
+
+return a list in list context and a reference to an array in scalar context.
 
 =item -
 
@@ -376,7 +389,8 @@ sub directive
         }
         else
         {
-            return [$root->{$directive} ? map($_->[0], @{$root->{$directive}}) : ()];
+            my @directive_values = $root->{$directive} ? map($_->[0], @{$root->{$directive}}) : ();
+            return(wantarray ? @directive_values : \@directive_values);
         }
     }
     else
@@ -387,7 +401,7 @@ sub directive
             next if($k eq '_pos');
             push(@directives, $k) if(ref($root->{$k}) eq 'ARRAY');
         }
-        return(\@directives);
+        return(wantarray ? @directives : \@directives);
     }
 }
 
@@ -643,6 +657,12 @@ Copyright (C) 2001 - Olivier Poitrey
 =head1 HISTORY
 
 $Log: Config.pm,v $
+Revision 1.20  2001/09/20 00:43:31  rs
+don't confuse array and list !
+
+Revision 1.18  2001/09/20 00:25:59  rs
+section and directive now return an array if called in array context
+
 Revision 1.17  2001/09/17 23:44:06  rs
 minor bugfix
 
