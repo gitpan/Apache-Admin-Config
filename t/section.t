@@ -1,11 +1,6 @@
-package Test::AA::section;
-
-BEGIN
-{
-    use strict;
-    use Test;
-    plan test => 7;
-}
+use strict;
+use Test;
+plan test => 6;
 
 use Apache::Admin::Config;
 ok(1);
@@ -21,7 +16,6 @@ ok(@secvals, 4);
 
 my $obj = $secvals[0];
 ok(defined $obj);
-ok($obj->value, $secvals[0]);
 
 my $root = $apache->section(directory=>'/');
 ok(defined $root);

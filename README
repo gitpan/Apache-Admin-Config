@@ -1,4 +1,4 @@
-Apache::Admin::Config 0.21
+Apache::Admin::Config 0.50
 ==========================
 
 INSTALLATION
@@ -16,12 +16,27 @@ UPGRADING FROM PREVIOUS VERSIONS
 
 CHANGES
 
+0.50 Fri Jun  7 18:25:39 CEST 2002
+        - Many major bugfix
+        - Complete rewrite of module with new algorithm
+        - Homogenisation of API (may distrub you old applications !)
+        - No longer support old API (-oldapi option)
+        - Now, all methods are overloaded to return its value, but
+          using overloading feature is really deprecated
+        - New: support indentation
+        - New: can handle comment and blank lines
+        - New methods : add, select
+                        add_comment, comment
+                        add_blank, blank
+        - Upgrade documentation
+        - Optimisations, it's now very fast ! =)
+
 0.21 Mon Jun 3 16:39:41 2002
         - Major bugfix: correction of the behavior of the parameters
-          '-ontop', '-onbottom', '-after' and '-before' in methods
+          '-ontop', '-onbottom', '-after' and '-before' in methods 
           'add_directive' and 'add_section'.
 
-0.20 Mon Jun  3 11:03:05 2002
+0.20 Mon Jun 3 11:03:05 2002
         - Many major bugfix
         - Algorithm rewriten, it's 65 times faster !
 
@@ -126,6 +141,7 @@ CHANGES
 
 0.01  Sun Aug 12 11:58:10 2001
 	- Original version; created by h2xs 1.21 with options -AX -n Apache::Admin
+
 NAME
     Apache::Admin::Config - A common module to manipulate Apache
     configuration files
@@ -134,126 +150,137 @@ SYNOPSIS
         use Apache::Admin::Config;
 
         # Parse an apache configuration file
-        my $obj = new Apache::Admin::Config ("/path/to/config_file.conf")
+
+        my $conf = new Apache::Admin::Config "/path/to/config_file.conf"
             or die $Apache::Admin::Config::ERROR;
 
         # or parse a filehandle
+
         open(ANHANDLE, "/path/to/a/file")...
-        ...
-        my $obj = new Apache::Admin::Config (\*ANHANDLE)
+
+        my $conf = new Apache::Admin::Config \*ANHANDLE
             or die $Apache::Admin::Config::ERROR;
 
-        #
-        # working with directives
-        #
-
-        # Getting the full list of directives in current context. 
+        ...
 
         # Directive method called without any argument, return a list
-        # of all directive located in the current context. The actual
-        # context is called "top", because it haven't any parent.
-        my @directives_list = $obj->directive;
+        # of all directive located in the current context.
 
-        # The resulting array, is sorted by order of apparence in the
-        # file. So you can easly figure directive's precedence.
+        my @directives_list = $conf->directive;
 
-        # Each item of @directives_list array is a "magic" string. If
-        # you print one, it return the name of pointed directive.
-        my $directive = $directives_list[3];
-        print $directive; # return "DocumentRoot" for example
+        # This method returns a list of object (one object by directive)
+        # sorted by order of apparence in the file.
 
-        # But this "magic" string is also an object, that have many
-        # methods for manage this directive.
-        print $directive->value;  # "/my/document/root"
-        print $directive->type;   # "directive"
-        $directive->isin($obj);   # true
-        $directive->delete;
-        ...
+        # You can easly get the 3th directive of the context
+
+        my $directive = $directives_list[2];
+
+        # or
+
+        my $directive = $conf->directive(-which=>2);
     
-        # this print all current context's directives and it's associated
-        # value :
-        foreach my $directive ($obj->directive)
+        # Then, you can manipulate object like this
+
+        if(defined $directive)
         {
-            printf qq(%s: '%s' has value: '%s' at line %d\n), 
-                $directive->type, $directive->name, $directive->value, $directive->first_line;
+            print $directive->name;   # "documentroot"
+            print $directive->value;  # "/my/document/root"
+            print $directive->type;   # "directive"
+            $directive->isin($conf);  # true
+            ...
+            $directive->delete;
+        }
+
+        # this print all current context's directives names
+
+        foreach($conf->directive)
+        {
+            print $_->name, "\n";
         }
     
-        # possible output:
-        directive: servertype has value: standalone at line 48
-        directive: serverroot has value: "@@ServerRoot@@" at line 61
-        directive: pidfile has value: logs/httpd.pid at line 78
-        directive: scoreboardfile has value: logs/apache_runtime_status at line 86
-        ...
+        # You want get all directives of current context who's name is "Foo",
+        # juste give the string "Foo" at first argument to methode `directive' :
     
-        # you can select which directive you want
-        my $directive = $obj->directive(-which=>8); # you'll get the 8th directive of
-                                                    # the current context
-    
-        # getting the full list of directive who's name is "Foo" in the current context
         my @foo_directives = $obj->directive('Foo');
+
         # or just the 4th
+
         my $4th_foo_directive = $obj->directive('Foo', -which=>4);
 
-        # you may want just directives named "Foo" with value "Bar", it return
-        # a list of all directives with these name/value in list context
-        my @foo_bar_directives = $obj->directive(Foo=>'Bar');
-        # or just the last one in scalar context
-        my $foo_bar_directive = $obj->directive(Foo=>'Bar');
-        # or the second one if "-which" option is given.
-        my $foo_bar_directive = $obj->directive(Foo=>'Bar', -which=>2);
-
-        # working on directive "PidFile"
-        my $pidfile = $obj->directive(PidFile=>'logs/httpd.pid');
-
-        # changing value of directive "PidFile logs/httpd.pid" to "PidFile logs/apache.pid"
-        $pidfile->set_value('logs/apache.pid');
-
-        # deleting directive "PidFile logs/apache.pid"
-        $pidfile->delete;
-
-        # or deleting all directives "AddType"
-        map($_->delete, $obj->directive(AddType)); # dangerous
-
-        # adding directive "AddType text/html .shtml" just after the last AddType directive if any
-        # or at the end of file (or section)
-        $obj->add_directive(AddType=>'text/html .shtml', -after=>$obj->directive('AddType', -which=>-1))
-        # only if "AddType text/html .shtml" doesn't exist
-        unless($obj->directive(AddType=>'text/html .shtml'));
-
-        #
-        # working with sections
-        #
-
-        # you can get object to another context like this
-        my $section_directive_foo = $obj->section(Foo=>'Bar');
-        my @directives_list = $section_directive_foo->directive;
-
-        # accessing the section "<file some_file>" in the section "<directory /some/dir>" 
-        # of section "<virtualhost example.com>"
-        my $subsubsubsection = $obj->section(virtualhost=>"example.com")->section(directory=>"/some/dir")->section(file=>"some_file")
-
-        #
-        # reordering lines
-        # 
-
-        # moving all directives "LoadModule" before directives "AddModule" in the current context
-        my $first_addmodule = $obj->directive(AddModule, -which=>0):
-        foreach my $loadmodule ($obj->directive('LoadModule'))
-        {
-            $loadmodule->move(-before=>$first_addmodule);
-              if($loadmodule->line > $first_addmodule->line);
-        }
+        # you may want all directives named "Foo" but with value "Bar", so
+        # give the wanted value as second argument to `directive' :
     
-        #
-        # save
-        #
+        my @foo_bar_directives = $conf->directive(Foo=>'Bar');
 
-        # save change in place
-        $obj->save;
+        # or just the last one in scalar context
+
+        my $foo_bar_directive = $conf->directive(Foo=>'Bar');
+
+        # or the second one if "-which" option is given.
+
+        my $foo_bar_directive = $conf->directive(Foo=>'Bar', -which=>2);
+
+        # Working on directive "PidFile" :
+        #
+        # getting the last pidfile directive
+
+        my $pidfile = $conf->directive('PidFile');
+    
+        # changing its value to '/var/run/apache.pid'
+
+        my $pidfile_value = '/var/run/apache.pid';
+
+        if(defined $pidfile)
+        {
+            $pidfile->set_value($pidfile_value)
+                unless $pidfile->value eq $pidfile_value;
+        }
+        else
+        {
+            $conf->add_directive(PidFile => $pidfile_value);
+        }
+
+        # Deleting all directives "AddType"
+
+        foreach($conf->directive(AddType))
+        {
+            $_->delete;
+        }
+
+        # Adding directive "AddType text/html .shtml" just after the last AddType directive if any
+        # or at the end of file (or section)
+
+        my $last_addtype = $obj->directive('AddType', -which=>-1);
+
+        if(defined $last_addtype)
+        {
+            $conf->add_directive(AddType => 'text/html .shtml', -after=>$last_addtype);
+        }
+        else
+        {
+            $conf->add_directive(AddType => 'text/html .shtml', '-bottom');
+        }
+
+        # You can get a directive located in a section like this
+
+        my $section = $conf->section(Foo=>'Bar');
+        my $subdirective;
+        if(defined $section)
+        {
+            $subdirective = $section->directive(Bar=>'foo');
+        }
+
+        # saving changes in place
+
+        $conf->save;
+    
         # or in another file (sound like "save as...")
-        $obj->save("/path/to/another/file");
+
+        $conf->save("/path/to/another/file");
+
         # or in an already openned file
-        $obj->save(\*FILE_HANDLE);
+
+        $conf->save(\*FILE_HANDLE);
 
 DESCRIPTION
     "Apache::Admin::Config" provides an object interface to handling Apache
@@ -261,8 +288,11 @@ DESCRIPTION
     truncated lines.
 
 METHODES
-  new ([*/path/to/file*|*handle*], -oldapi=>*0|1*)
-    Create or read, if given in argument, an apache like configuration file.
+  NEW
+        $obj = new Apache::Admin::Config [/path/to/file|handle], [-indent => $integer]
+
+    Create or read, if given in argument, an apache like configuration file,
+    and return an Apache::Admin::Config instence.
 
     Arguments:
 
@@ -270,211 +300,190 @@ METHODES
         Path to the configuration file to parse. If none given, create a new
         one.
 
-        = item *"handle"*
-
+    *"handle"*
         Instead of specify a path to a file, you can give a reference to an
         handle that point to an already openned file. You can do this like
         this :
 
-            my $conf = new Apache::Admin::Config (\*MYHANDLE);
+            my $obj = new Apache::Admin::Config (\*MYHANDLE);
 
-    *-oldapi*=>*0/1*
-        If true, keep the old api backward compatibility. Read UPGRADE-0.10
-        for more details. Default is false.
+    *-indent* => *$integer*
+        If greater than 0, activates the indentation on added lines, the
+        integer tell how many spaces you went per level of indentation
+        (suggest 4). A negative value means padding with tabulation(s).
 
-  save ([*/path/to/file*|*HANDLE*])
+  SAVE
+        $obj->save([/path/to/file|HANDLE])
+
     Write modifications to the configuration file. If a path to a file is
     given, save the modification to this file instead. You also can give a
     reference to a filehandle like this :
 
         $conf->save(\*MYHANDLE) or die($conf->error);
 
-  dump_raw
-    Return the configuration file as same as it will be if it saved in a
-    file with the save() method.
+  DUMP_RAW
+        $obj->dump_raw
 
-  add_section (*name*=>*'value'*, [-before=>*target* | -after=>*target* | -ontop | -onbottom])
-        $obj->add_section(foo=>'bar', -after=>$obj->directive('oof', -which=>-1));
+    Returns the configuration file as same as it will be if it saved in a
+    file with the save() method. If you don't call this method from the top
+    level section, it returns the part of the configuration file that is
+    under the object's context.
 
-    Add the directive *foo* with value *bar* in the context pointed by $obj.
+  SELECT
+        $obj->select
+        (
+            [-type  => $type],
+            [-name  => $name],
+            [-value => $value],
+            [-which => $index],
+        );
 
-    Aguments:
+        @directives    = $obj->select('directive');
+        @sections_foo  = $obj->select('section', 'Foo');
 
-    "name"
-        Section's name to add.
+    This method search in the current context for items (directives,
+    sections, comments...) that correspond to a properties given by
+    arguments. It returns a list of matched objects.
 
-    "value"
-        Value associated with this section's name
-
-    "-before"=>*target*
-        insert section one line before *target* if is in same context;
-
-    "-after"=>*target*
-        insert section one line after *target* if is in same context;
-
-    "-ontop"
-        insert section on the fist line of current context;
-
-    "-onbottom"
-        insert section on the last line of current context;
-
-    Return the added section
-
-  section ([[*name*], *value*], [-which=>*number*])
-        @sections_list      = $obj->section;
-        @section_values     = $obj->section(SectionName);
-        $section_object     = $obj->section(SectionName=>'value');
-
-    arguments:
-
-    - "name"
-        the name of section, it's File in section <File "*/path/to/file*">
-
-    - "value"
-        the value of the section
-
-    This method return :
-
-    -   list of sections in current context if no argument is given.
-
-    -   list of sections *foo*'s values if the only argument is *foo*.
-
-        return a list in list context and a reference to an array in scalar
-        context.
-
-    -   an object for the context pointed by the section *foo* with value
-        *bar* if arguments given was *foo* and *bar*.
-
-  add_directive (*name*=>*'value'*, [-before=>*target* | -after=>*target* | -ontop | -onbottom])
-        $obj->add_directive(foo=>'bar', -after=>$obj->directive('oof', -which=>-1));
-
-    Add the directive *foo* with value *bar* in the context pointed by $obj.
-
-    Aguments:
-
-    "name"
-        Directive's name to add.
-
-    "value"
-        Value associated with this directive's name
-
-    "-before"=>*target*
-        insert directive one line before *target* if is in same context;
-
-    "-after"=>*target*
-        insert directive one line after *target* if is in same context;
-
-    "-ontop"
-        insert directive on the fist line of current context;
-
-    "-onbottom"
-        insert directive on the last line of current context;
-
-    Return the added directive.
-
-  directive ([[*name*], *value*], [-which=>*number*])
-        @directives_list    = $obj->directive;
-        @directive_values   = $obj->directive(Foo);
-        $directvie_object   = $obj->directive(Foo=>'bar');
+    This method can only be called on an object of type "section". This
+    method search only for elements in the section pointed by object, and
+    isn't recursive. So elements in sub-sections of current section aren's
+    seek.
 
     Arguments:
 
+    "type"
+        The type of searched item.
+
     "name"
-        the name of directive.
+        The name of item.
 
     "value"
-        value of the directive.
+        Value of item.
 
-    This method return :
+    "which"
+        Instead of returns a list of objects, returns only ones pointed by
+        index given to the -which option. Caution, returns an empty string
+        if none selected, so don't cascade your methodes calls like
+        $obj->select(-which=>0)->name.
 
-    -   list of directives in context pointed by $obj if no argument is
-        given.
+    Method returns a list of object(s) founds.
 
-        return a list in list context and a reference to an array in scalar
-        context.
+  DIRECTIVE
+        $obj->directive(args...)
 
-    -   list of *foo* directive's values if the only argument is *foo*.
+    Same as calling select('directive', args...)
 
-        return a list in list context and a reference to an array in scalar
-        context.
+  SECTION
+        $obj->section(args...)
 
-    -   an object for handling directive called *foo* with value *bar* if
-        arguments given was *foo* and *bar*. Warning, if several directive
-        have the same name and value, the last one is taken, may change in
-        future versions.
+    Same as calling select('section', args...)
 
-  delete ()
-        $htconf->directive('AddType'=>'.pl')->delete;
-        $htconf->section('File'=>'/path/to/file')->delete;
+  COMMENT
+        $obj->comment(args...)
+
+    Same as calling select('comment', args...)
+
+  BLANK
+        $obj->blank(args...)
+
+    Same as calling select('blank', args...)
+
+  ADD
+        $obj->add
+        (
+            $type, [$name], [$value],
+            [-before => $target | -after => $target | '-ontop' | '-onbottom']
+        );
+
+        $obj->add('section', foo => 'bar', -after => $conf_item_object);
+        $obj->add('comment', 'a simple comment', '-ontop');
+
+    Add a line of type *$type* with name *foo* and value *bar* in the
+    context pointed by $object.
+
+    Aguments:
+
+    "type"
+        Type of object to add (directive, section, comment or blank)
+
+    "name"
+        Only relevant for directives and sections.
+
+    "value"
+        For directive and section, it defines the value, for comments it
+        defined the text.
+
+    "-before" => *target*
+        Inserts item one line before *target*. *target* _have_ to be in the
+        same context
+
+    "-after" => *target*
+        Inserts item one line after *target*. *target* _have_ to be in the
+        same context
+
+    "-ontop"
+        Insert item on the fist line of current context;
+
+    "-onbottom"
+        Iinsert item on the last line of current context;
+
+    Returns the added item
+
+  ADD_SECTION
+        $obj->add_section(args...)
+
+    Same as calling add('section', args...)
+
+  ADD_DIRECTIVE
+        $obj->add_directive(args...)
+
+    Same as calling add('directive', args...)
+
+  ADD_COMMENT
+        $obj->add_comment(args...)
+
+    Same as calling add('comment', args...)
+
+  ADD_BLANK
+        $obj->add_blank(args...)
+
+    Same as calling add('blank', args...)
+
+  DELETE
+        $item->delete;
 
     Delete the current context pointed by object. Can be directive or
     section.
 
-  set_value (*newvalue*)
-        $htconf->directive('File'=>'/path/to/foo')->set_value('/path/to/bar');
+  SET_VALUE
+        $obj->set_value($newvalue)
 
     Change the value of a directive or section. If no argument given, return
-    the value of object $htconf.
+    the value.
 
-  value ()
+  VALUE
     Return the value of rule pointed by the object if any.
 
     ("value" and "set_value" are the same method)
 
-  move (-before=>*target* | -after=>*target* | -replace=>*target* | -tofirst | -tolast)
-    under construction
+  MOVE
+        $obj->move
+        (
+            -before => target |
+            -after => $target |
+            -replace => $target |
+            '-ontop' |
+            '-onbottom'
+        )
 
-  name ()
-    Return the name of the current pointed directive or section. return
-    undef if object point to the top context:
+    not yet implemented
 
-        my $obj = new Apache:Admin::Config ("/path/to/file");
+  FIRST_LINE
+  LAST_LINE
+  ISIN
+        $obj->($section_obj, ['-recursif'])
 
-        $obj->name; return undef
-        $obj->directive(-which=>0)->name; return first directive's name
-        $obj->section(Foo, -which=>0)->name; return "Foo"
-
-  lines ()
-    * If the caller object point to a directive :
-
-      Return a list of lines'number occuped by the object's directive. If
-      more than one line'number is return, that's mean the directive is
-      truncated on serveral lines :
-
-          18. DirectoryIndex  index.html \
-          19.                 index.shtml \
-          20.                 index.pl \
-          ...
-
-          $obj->directive(DirectoryIndex, -which=>x)->line # return (18, 19, 20)
-
-    * If the caller object point to a section :
-
-      Return a list of arrayref where all odd indexes are sections-opening
-      and pair are sections-closing. Each arrayref conteints a list of
-      lines'number occuped by the section rule (if section rule truncated).
-
-          18. <VirtualHost 127.0.0.1 \
-          19.              10.20.30.40 \
-          20.              197.200.30.40>
-          21.     ServerName example.com
-          22. </VirtualHost>
-          ...
-          50. <VirtualHost 127.0.0.1 10.20.30.40 197.200.30.40>
-          51.     ServerAlias www.example.com
-          52.     User        rs
-          53. </VirtualHost>
-
-          $obj->directive(VirtualHost, -which=>x)->lines # return ([18, 19, 20], [22], [50], [53])
-
-  first_line ()
-  last_line ()
-  dump_line *line_number*
-        $obj->dump_line($directive->first_line);
-
-    Dump the *line_number* line of current parsed configuration.
-
-  isin ($section_obj, [-recursif])
     Return true if object point to a rule that is in the section represented
     by $section_obj. If "-recursif" option is present, true is also return
     if object is a sub-section of target.
@@ -489,15 +498,17 @@ METHODES
         $test_directive->isin($sub_section)                 => return true
         $test_directive->isin($target_section, '-recursif') => return true
 
-  parent ()
-    Return the parent context of object.
+  NAME
+    Returns the name of the current pointed object if any
 
-    $obj is same as $obj->directive(-which=>0)->parent
+  PARENT
+    Returns the parent context of object. This method on the top level
+    object returns "undef".
 
-  type ()
-    Return the type of object. Types can be 'directive', 'section' or 'top'.
+  TYPE
+    Returns the type of object.
 
-  error ()
+  ERROR
     Return the last append error.
 
 EXAMPLES
@@ -528,6 +539,29 @@ EXAMPLES
                 last;
             }
         }
+
+        #
+        # Suppress all comments in the file
+        # 
+
+        sub delete_comments
+        {
+            foreach(shift->comment)
+            {
+                $_->delete;
+            }
+        }
+
+        sub delete_all_comments
+        {
+            foreach($_[0]->section)
+            {
+                parse_all($_);
+            }
+            delete_comments($_[0]);
+        }
+
+        delete_all_comments($conf);
 
 AUTHOR
     Olivier Poitrey <rs@rhapsodyk.net>

@@ -7,10 +7,9 @@ BEGIN
     use FileHandle;
     use overload nomethod => \&to_string;
 
-    $Apache::Admin::Config::VERSION = '0.21';
+    $Apache::Admin::Config::VERSION = '0.50';
     $Apache::Admin::Config::DEBUG   = 0;
 }
-
 
 =pod
 
@@ -23,132 +22,144 @@ Apache::Admin::Config - A common module to manipulate Apache configuration files
     use Apache::Admin::Config;
 
     # Parse an apache configuration file
-    my $obj = new Apache::Admin::Config ("/path/to/config_file.conf")
+
+    my $conf = new Apache::Admin::Config "/path/to/config_file.conf"
         or die $Apache::Admin::Config::ERROR;
+
 
     # or parse a filehandle
+
     open(ANHANDLE, "/path/to/a/file")...
-    ...
-    my $obj = new Apache::Admin::Config (\*ANHANDLE)
+
+    my $conf = new Apache::Admin::Config \*ANHANDLE
         or die $Apache::Admin::Config::ERROR;
 
-
-    #
-    # working with directives
-    #
-
-
-    # Getting the full list of directives in current context. 
+    ...
 
     # Directive method called without any argument, return a list
-    # of all directive located in the current context. The actual
-    # context is called "top", because it haven't any parent.
-    my @directives_list = $obj->directive;
+    # of all directive located in the current context.
 
-    # The resulting array, is sorted by order of apparence in the
-    # file. So you can easly figure directive's precedence.
+    my @directives_list = $conf->directive;
 
-    # Each item of @directives_list array is a "magic" string. If
-    # you print one, it return the name of pointed directive.
-    my $directive = $directives_list[3];
-    print $directive; # return "DocumentRoot" for example
+    # This method returns a list of object (one object by directive)
+    # sorted by order of apparence in the file.
 
-    # But this "magic" string is also an object, that have many
-    # methods for manage this directive.
-    print $directive->value;  # "/my/document/root"
-    print $directive->type;   # "directive"
-    $directive->isin($obj);   # true
-    $directive->delete;
-    ...
+    # You can easly get the 3th directive of the context
+
+    my $directive = $directives_list[2];
+
+    # or
+
+    my $directive = $conf->directive(-which=>2);
     
-    # this print all current context's directives and it's associated
-    # value :
-    foreach my $directive ($obj->directive)
+
+    # Then, you can manipulate object like this
+
+    if(defined $directive)
     {
-        printf qq(%s: '%s' has value: '%s' at line %d\n), 
-            $directive->type, $directive->name, $directive->value, $directive->first_line;
+        print $directive->name;   # "documentroot"
+        print $directive->value;  # "/my/document/root"
+        print $directive->type;   # "directive"
+        $directive->isin($conf);  # true
+        ...
+        $directive->delete;
+    }
+
+    
+    # this print all current context's directives names
+
+    foreach($conf->directive)
+    {
+        print $_->name, "\n";
     }
     
-    # possible output:
-    directive: servertype has value: standalone at line 48
-    directive: serverroot has value: "@@ServerRoot@@" at line 61
-    directive: pidfile has value: logs/httpd.pid at line 78
-    directive: scoreboardfile has value: logs/apache_runtime_status at line 86
-    ...
+    # You want get all directives of current context who's name is "Foo",
+    # juste give the string "Foo" at first argument to methode `directive' :
     
-    # you can select which directive you want
-    my $directive = $obj->directive(-which=>8); # you'll get the 8th directive of
-                                                # the current context
-    
-
-    # getting the full list of directive who's name is "Foo" in the current context
     my @foo_directives = $obj->directive('Foo');
+
     # or just the 4th
+
     my $4th_foo_directive = $obj->directive('Foo', -which=>4);
 
 
-    # you may want just directives named "Foo" with value "Bar", it return
-    # a list of all directives with these name/value in list context
-    my @foo_bar_directives = $obj->directive(Foo=>'Bar');
-    # or just the last one in scalar context
-    my $foo_bar_directive = $obj->directive(Foo=>'Bar');
-    # or the second one if "-which" option is given.
-    my $foo_bar_directive = $obj->directive(Foo=>'Bar', -which=>2);
-
-    # working on directive "PidFile"
-    my $pidfile = $obj->directive(PidFile=>'logs/httpd.pid');
-
-    # changing value of directive "PidFile logs/httpd.pid" to "PidFile logs/apache.pid"
-    $pidfile->set_value('logs/apache.pid');
-
-
-    # deleting directive "PidFile logs/apache.pid"
-    $pidfile->delete;
-
-    # or deleting all directives "AddType"
-    map($_->delete, $obj->directive(AddType)); # dangerous
-
-
-    # adding directive "AddType text/html .shtml" just after the last AddType directive if any
-    # or at the end of file (or section)
-    $obj->add_directive(AddType=>'text/html .shtml', -after=>$obj->directive('AddType', -which=>-1))
-    # only if "AddType text/html .shtml" doesn't exist
-    unless($obj->directive(AddType=>'text/html .shtml'));
-
-    #
-    # working with sections
-    #
-
-    # you can get object to another context like this
-    my $section_directive_foo = $obj->section(Foo=>'Bar');
-    my @directives_list = $section_directive_foo->directive;
-
-    # accessing the section "<file some_file>" in the section "<directory /some/dir>" 
-    # of section "<virtualhost example.com>"
-    my $subsubsubsection = $obj->section(virtualhost=>"example.com")->section(directory=>"/some/dir")->section(file=>"some_file")
-
-    #
-    # reordering lines
-    # 
-
-    # moving all directives "LoadModule" before directives "AddModule" in the current context
-    my $first_addmodule = $obj->directive(AddModule, -which=>0):
-    foreach my $loadmodule ($obj->directive('LoadModule'))
-    {
-        $loadmodule->move(-before=>$first_addmodule);
-          if($loadmodule->line > $first_addmodule->line);
-    }
+    # you may want all directives named "Foo" but with value "Bar", so
+    # give the wanted value as second argument to `directive' :
     
-    #
-    # save
-    #
+    my @foo_bar_directives = $conf->directive(Foo=>'Bar');
 
-    # save change in place
-    $obj->save;
+    # or just the last one in scalar context
+
+    my $foo_bar_directive = $conf->directive(Foo=>'Bar');
+
+    # or the second one if "-which" option is given.
+
+    my $foo_bar_directive = $conf->directive(Foo=>'Bar', -which=>2);
+
+
+    # Working on directive "PidFile" :
+    #
+    # getting the last pidfile directive
+
+    my $pidfile = $conf->directive('PidFile');
+    
+    # changing its value to '/var/run/apache.pid'
+
+    my $pidfile_value = '/var/run/apache.pid';
+
+    if(defined $pidfile)
+    {
+        $pidfile->set_value($pidfile_value)
+            unless $pidfile->value eq $pidfile_value;
+    }
+    else
+    {
+        $conf->add_directive(PidFile => $pidfile_value);
+    }
+
+
+    # Deleting all directives "AddType"
+
+    foreach($conf->directive(AddType))
+    {
+        $_->delete;
+    }
+
+
+    # Adding directive "AddType text/html .shtml" just after the last AddType directive if any
+    # or at the end of file (or section)
+
+    my $last_addtype = $obj->directive('AddType', -which=>-1);
+
+    if(defined $last_addtype)
+    {
+        $conf->add_directive(AddType => 'text/html .shtml', -after=>$last_addtype);
+    }
+    else
+    {
+        $conf->add_directive(AddType => 'text/html .shtml', '-bottom');
+    }
+
+    # You can get a directive located in a section like this
+
+    my $section = $conf->section(Foo=>'Bar');
+    my $subdirective;
+    if(defined $section)
+    {
+        $subdirective = $section->directive(Bar=>'foo');
+    }
+
+    # saving changes in place
+
+    $conf->save;
+    
     # or in another file (sound like "save as...")
-    $obj->save("/path/to/another/file");
+
+    $conf->save("/path/to/another/file");
+
     # or in an already openned file
-    $obj->save(\*FILE_HANDLE);
+
+    $conf->save(\*FILE_HANDLE);
 
 =head1 DESCRIPTION
 
@@ -157,9 +168,12 @@ configuration files without modifying comments, identation, or truncated lines.
 
 =head1 METHODES
 
-=head2 new ([I</path/to/file>|I<handle>], B<-oldapi>=>I<0|1>)
+=head2 NEW
 
-Create or read, if given in argument, an apache like configuration file.
+    $obj = new Apache::Admin::Config [/path/to/file|handle], [-indent => $integer]
+
+Create or read, if given in argument, an apache like configuration file, and
+return an Apache::Admin::Config instence.
 
 Arguments:
 
@@ -169,17 +183,18 @@ Arguments:
 
 Path to the configuration file to parse. If none given, create a new one.
 
-= item I<C<handle>>
+=item I<C<handle>>
 
 Instead of specify a path to a file, you can give a reference to an handle that
 point to an already openned file. You can do this like this :
 
-    my $conf = new Apache::Admin::Config (\*MYHANDLE);
+    my $obj = new Apache::Admin::Config (\*MYHANDLE);
 
-=item I<B<-oldapi>>=E<gt>I<0/1>
+=item I<B<-indent>> =E<gt> I<$integer>
 
-If true, keep the old api backward compatibility. Read UPGRADE-0.10 for more details.
-Default is false.
+If greater than 0, activates the indentation on added lines, the integer tell how
+many spaces you went per level of indentation (suggest 4). A negative value means
+padding with tabulation(s).
 
 =back
 
@@ -190,14 +205,13 @@ sub new
     my $pkg  = shift;
     my $self = bless({}, ref($pkg) || $pkg);
 
-    $self->{oldapi} = _get_arg(\@_, '-oldapi!');
-    $self->{indent} = _get_arg(\@_, '-indent!');
+    $self->{indent} = _get_arg(\@_, '-indent');
     
     $self->{htaccess} = $htaccess = shift;
 
-    $self->{level} = '';
-    $self->{top}   = $self;
-    $self->{type}  = 'top';
+    $self->{top}     = $self;
+    $self->{type}    = 'section';
+    $self->{parent}  = undef;
 
     if(defined $htaccess && (ref $htaccess eq 'GLOB' || -f $htaccess)) # trying to handle GLOBs
     {
@@ -213,7 +227,9 @@ sub new
 
 =pod
 
-=head2 save ([I</path/to/file>|I<HANDLE>])
+=head2 SAVE
+
+    $obj->save([/path/to/file|HANDLE])
 
 Write modifications to the configuration file. If a path to a file is given,
 save the modification to this file instead. You also can give a reference to
@@ -225,13 +241,15 @@ a filehandle like this :
 
 sub save
 {
-    my $self = shift;
-    my $saveas = shift;
-    return($self->_set_error('only root object can call save method')) unless($self->{type} eq 'top');
+    my($self, $saveas) = @_;
+
+    return $self->_set_error('only top level object can call save method')
+        if defined $self->{parent};
 
     my $htaccess = defined $saveas ? $saveas : $self->{htaccess};
 
-    return $self->_set_error("you have to specify a location for writing configuration") unless defined $htaccess;
+    return $self->_set_error("you have to specify a location for writing configuration")
+        unless defined $htaccess;
 
     my $fh;
 
@@ -241,7 +259,8 @@ sub save
     }
     else
     {
-        $fh = new FileHandle(">$htaccess") or return $self->_set_error("can't open `$htaccess' file for read");
+        $fh = new FileHandle(">$htaccess")
+            or return $self->_set_error("can't open `$htaccess' file for read");
     }
 
     print $fh $self->dump_raw;
@@ -251,346 +270,215 @@ sub save
 
 =pod
 
-=head2 dump_raw
+=head2 DUMP_RAW
 
-Return the configuration file as same as it will be if it saved in a file with the
-B<save()> method.
+    $obj->dump_raw
+
+Returns the configuration file as same as it will be if it saved in a file with
+the B<save()> method. If you don't call this method from the top level section,
+it returns the part of the configuration file that is under the object's context.
 
 =cut
 
 sub dump_raw
 {
     my($self) = @_;
-    return($self->_set_error('only root object can call dump_raw method')) unless($self->{type} eq 'top');
-
-    return(join('', map("$_\n", @{$self->{top}->{contents_raw}})));
-}
-
-sub dump_struct
-{
-    my($self) = @_;
-    eval('use Data::Dumper; Data::Dumper::Dumper($self->{top}->{contents_parsed}), "\n";');
-}
-
-sub write_section
-{
-    # this methode is made for easy sections writing's overload
-    # must take 2 arguments (directive name, directive value)
-    # and return a string
-    my $self  = shift;
-    my $name  = shift;
-    my $value = shift;
-    my $indent = '';
-    if($self->{top}->{indent})
-    {
-        my $root  = $self;
-        while($root->type ne 'top')
-        {
-            $root = $root->parent;
-            $indent .= '    ';
-        }
-    }
-    return("$indent<$name $value>");
-}
-
-sub write_section_closing
-{
-    # this methode is made for easy sections closer writing's overload
-    # take 1 argument (directive name) and return string
-    my $self = shift;
-    my $name = shift;
-    my $indent = '';
-    if($self->{top}->{indent})
-    {
-        my $root  = $self;
-        while($root->type ne 'top')
-        {
-            $root = $root->parent;
-            $indent .= '    ';
-        }
-    }
-    return("$indent</$name>");
+    return _deploy($self);
 }
 
 =pod
 
-=head2 add_section (I<name>=>I<'value'>, [B<-before>=>I<target> | B<-after>=>I<target> | B<-ontop> | B<-onbottom>])
+=head2 SELECT
 
-    $obj->add_section(foo=>'bar', -after=>$obj->directive('oof', -which=>-1));
+    $obj->select
+    (
+        [-type  => $type],
+        [-name  => $name],
+        [-value => $value],
+        [-which => $index],
+    );
 
-Add the directive I<foo> with value I<bar> in the context pointed by B<$obj>.
+    @directives    = $obj->select('directive');
+    @sections_foo  = $obj->select('section', 'Foo');
 
-Aguments:
+This method search in the current context for items (directives, sections,
+comments...) that correspond to a properties given by arguments. It returns
+a B<list> of matched objects.
+
+This method can only be called on an object of type "section". This method search
+only for elements in the section pointed by object, and isn't recursive. So elements
+B<in> sub-sections of current section aren's seek.
+
+Arguments:
 
 =over 4
+
+=item B<C<type>>
+
+The type of searched item.
 
 =item B<C<name>>
 
-Section's name to add.
+The name of item.
 
 =item B<C<value>>
 
-Value associated with this section's name
+Value of item.
 
-=item B<C<-before>>=E<gt>I<target>
+=item B<C<which>>
 
-insert section one line before I<target> if is in same context;
-
-=item B<C<-after>>=E<gt>I<target>
-
-insert section one line after I<target> if is in same context;
-
-=item B<C<-ontop>>
-
-insert section on the fist line of current context;
-
-=item B<C<-onbottom>>
-
-insert section on the last line of current context;
+Instead of returns a list of objects, returns only ones pointed
+by index given to the -which option. Caution, returns an empty
+string if none selected, so don't cascade your methodes calls 
+like $obj->select(-which=>0)->name.
 
 =back
 
-Return the added section
+Method returns a list of object(s) founds.
+
+=back
 
 =cut
 
-sub add_section
+sub select
 {
     my $self = shift;
 
-    my($target, $type) = _get_arg(\@_, '-before|-after|-ontop!|-onbottom!');
+    my $which = _get_arg(\@_, '-which');
+
+    my %args;
+    $args{type}  = _get_arg(\@_, '-type')  || undef;
+    $args{name}  = _get_arg(\@_, '-name')  || undef;
+    $args{value} = _get_arg(\@_, '-value') || undef;
+
+    # accepting old style arguments for backward compatibilitie
+    $args{type}  = shift unless defined $args{type};
+    $args{name}  = shift unless defined $args{name};
+    $args{value} = shift unless defined $args{value};
 
     # _get_arg return undef on error or empty string on not founded rule
-    return($self->_set_error('malformed arguments')) if(not defined $target);
+    return $self->_set_error('malformed arguments')
+        if not defined $which; 
+    # $which isn't an integer
+    return $self->_set_error('error in -which argument: not an integer')
+        if $which =~ /[^\d\-]/;
+    return $self->_set_error('too many arguments')
+        if @_;
+    return $self->_set_error('method not allowed')
+        unless $self->{type} eq 'section';
 
-    return($self->_set_error('too many arguments')) if(@_ > 2);
-    my($section_name, $entry) = @_;
+    $name = lc $name if defined $name;
 
-    return($self->_set_error('method not allowed')) if($self->{type} eq 'directive');
-    return($self->_set_error('too few arguments')) unless defined $section_name;
-    $section_name = lc $section_name;
-
-    my $insert_line = $self->_get_insert_line($type, $target);
-    return unless defined $insert_line;
-
-    my $which = $self->_get_section_before_line($section_name, $insert_line);
-    
-    $self->_insert_line
-    (
-        $insert_line, 
-        $self->write_section($section_name, $entry),
-        $self->write_section_closing($section_name)
-    );
-
-    my $index = $insert_line == 0 ? $insert_line : $insert_line-1;
-    my $new_section_hashref = _insert_section($self->_root, $section_name, $entry, [$index]);
-    _insert_section_closer($new_section_hashref, [$index+1]);
-
-    return($self->section($section_name, $entry, ($which ? ('-which',$which) : ())));
-}
-
-sub _get_section_before_line
-{
-    my($self, $section_name, $line) = @_;
-    my $root = $self->_root;
+    my @childs = @{$self->{childs}};
 
     my $n = 0;
-    foreach (_get_sections($root))
+    my @items;
+    # pre-select fields to test on each objects
+    my @field_to_test = 
+        grep(defined $args{$_}, qw(type name value));
+
+    foreach my $item (@childs)
     {
-        my($sec_tag, $sec_pos) = @$_[0,2];
-        my $sec_name = _untype($sec_tag, 'section');
-        next unless $sec_name eq $section_name;
-        $n++;
-        my $secline = $sec_pos->[-1]->[-1]+1;
-        return $n-1 if($secline > $line)
+        my $match = 1;
+        # for all given arguments, we test if it matched
+        # for missing aguments, match is always true
+        foreach(@field_to_test)
+        {
+            # an error occurend, we want select object
+            # on a properties that it doesn't have
+            return length $which ? '' : ()
+                unless(defined $item->{$_});
+
+            $match = $args{$_} eq $item->{$_};
+
+            last unless $match;
+        }
+
+        if($match)
+        {
+            push(@items, $item);
+        }
     }
 
-    return $n;
+    if(length $which)
+    {
+        return defined overload::StrVal($items[$which]) ? $items[$which] : '';
+    }
+    else
+    {
+        # We don't return just @items but transfort it in a list because
+        # in scalar context, returning an array is same as returning the number
+        # of ellements in it, but we want return the _last_ element like a list
+        # do une scalar context. If you have a better/nicer idea...
+        return(@items[0 .. $#items]);
+    }
 }
 
 =pod
 
-=head2 section ([[I<name>], I<value>], [B<-which>=>I<number>])
+=head2 DIRECTIVE
 
-    @sections_list      = $obj->section;
-    @section_values     = $obj->section(SectionName);
-    $section_object     = $obj->section(SectionName=>'value');
+    $obj->directive(args...)
 
-arguments:
+Same as calling select('directive', args...)
 
-=over 4
+=cut
 
-=item - B<C<name>>
+sub directive
+{
+    my $self = shift;
+    $self->select('directive', @_);
+}
 
-the name of section, it's B<File> in section E<lt>File "I</path/to/file>"E<gt>
+=pod
 
-=item - B<C<value>>
+=head2 SECTION
 
-the value of the section
+    $obj->section(args...)
 
-=back
-
-This method return :
-
-=over 4
-
-=item -
-
-list of sections in current context if no argument is given.
-
-=item -
-
-list of sections I<foo>'s values if the only argument is I<foo>.
-
-return a list in list context and a reference to an array in scalar context.
-
-=item -
-
-an object for the context pointed by the section I<foo> with value I<bar> if arguments
-given was I<foo> and I<bar>.
-
-=back
+Same as calling select('section', args...)
 
 =cut
 
 sub section
 {
-    my $self  = shift;
-
-    my $which = _get_arg(\@_, '-which');
-
-    # _get_arg return undef on error or empty string on not founded rule
-    return($self->_set_error('malformed arguments')) if(not defined $which); 
-    # $which isn't an integer
-    return($self->_set_error('wrong type for "which" argument')) if($which =~ /[^\d\-]/);
-    
-    return($self->_set_error('too many arguments')) if(@_ > 2);
-    my($section_name, $entry) = @_;
-    
-    return($self->_set_error('method not allowed')) if($self->{type} eq 'directive');
-    $section_name = lc $section_name if defined $section_name;
-    #$section = _type(lc($section), 'section') if(defined $section);
-    my $top  = $self->{top};
-    my $root = $self->_root || return undef;
-
-    if(defined $section_name)
-    {
-        if(defined $entry)
-        {
-            return($self->_set_error("section `$section_name' doesn't exists"))
-                unless exists $root->{_sections_counter}->{$section_name};
-
-            my @sections = $self->section($section_name);
-            my $section;
-            if(@sections)
-            {
-                if(length $which)
-                {
-                    my $n = 1;
-                    foreach $section (@sections)
-                    {
-                        next unless $section->value eq $entry;
-                        return $section if $n++ == $which;
-                    }
-                }
-                else
-                {
-                    foreach $section (reverse @sections)
-                    {
-                        return $section if $section->value eq $entry;
-                    }
-                }
-            }
-            return $self->_set_error
-            (
-                "section entry `<$section_name $entry>' doesn\'t exists".
-                (length $which ? " at `$which' position" : '')
-            );
-        }
-        else
-        {
-            return($self->_set_error("section `$section_name' doesn\'t exists"))
-                unless($root->{_sections_counter}->{$section_name});
-
-            my @section_values;
-            my $n = 0;
-            foreach(_get_sections($root))
-            {
-                my($sec_tag, $sec_val) = @$_;
-                my $sec_name = _untype($sec_tag, 'section');
-                next unless($sec_name eq $section_name);
-
-                if(length $which)
-                {
-                    next unless $n++ == $which;
-                }
-
-                my $sub = bless({});
-                $sub->{level}     = sprintf(q(%s->{'%s'}), $self->{level}, $sec_tag);
-                $sub->{top}       = $top;
-                $sub->{parent}    = $self;
-                $sub->{type}      = 'section';
-                $sub->{name}      = $sec_tag;
-                $sub->{value}     = $sec_val;
-                $sub->{to_string} = $sub->{value};
-
-                $which eq '' ? push(@section_values, $sub) : return $sub;
-            }
-            
-            return(wantarray ? @section_values : ($self->{oldapi} ? \@section_values : @section_values));
-        }
-    }
-    else
-    {
-        if(not length $which)
-        {
-            my @sections;
-            foreach(_get_sections($root))
-            {
-                my($sec_tag, $sec_val) = @$_;
-                my $sec_name = _untype($sec_tag, 'section');
-                my $sub = bless({});
-                $sub->{level}     = sprintf(q(%s->{'%s'}), $self->{level}, $sec_tag);
-                $sub->{top}       = $top;
-                $sub->{parent}    = $self;
-                $sub->{type}      = 'section';
-                $sub->{name}      = $sec_tag;
-                $sub->{value}     = $sec_val;
-                $sub->{to_string} = $sec_name;
-
-                # with new api, we have to return the last element in scalar context like normal
-                # list in scalar context. So we don't bless all unwanted objects instances.
-                return $sub if(!$self->{oldapi} && !wantarray);
-
-                push(@sections, $sub);
-            }
-            
-            return(wantarray ? @sections : ($self->{oldapi} ? \@sections : @sections));
-        }
-        else
-        {
-            my @sections = _get_sections($root);
-            if(defined $sections[$which])
-            {
-                my($sec_tag, $sec_val) = @{$sections[$which]};
-                my $sec_name = _untype($sec_tag, 'section');
-                my $sub = bless({});
-                $sub->{level}     = sprintf(q(%s->{'%s'}), $self->{level}, $sec_tag);
-                $sub->{top}       = $top;
-                $sub->{parent}    = $self;
-                $sub->{type}      = 'section';
-                $sub->{name}      = $sec_tag;
-                $sub->{value}     = $sec_val;
-                $sub->{to_string} = $sec_name;
-                return $sub;
-            }
-            else
-            {
-                return $self->_set_error("section doesn\'t exists at index `$which'");
-            }
-        }
-    }
+    my $self = shift;
+    $self->select('section', @_);
 }
+
+=pod
+
+=head2 COMMENT
+
+    $obj->comment(args...)
+
+Same as calling select('comment', args...)
+
+=cut
+
+sub comment
+{
+    my $self = shift;
+    $self->select('comment', undef, @_);
+}
+
+=pod
+
+=head2 BLANK
+
+    $obj->blank(args...)
+
+Same as calling select('blank', args...)
+
+=cut
+
+sub blank
+{
+    my $self = shift;
+    $self->select('blank', @_);
+}
+
+
 
 sub write_directive
 {
@@ -599,301 +487,244 @@ sub write_directive
     return undef unless defined $name;
     $value = defined $value ? $value : '';
     my $indent = '';
-    if($self->{top}->{indent})
-    {
-        my $root  = $self;
-        while($root->type ne 'top')
-        {
-            $root = $root->parent;
-            $indent .= '    ';
-        }
-    }
-    return("$indent$name $value");
+    return($self->_indent."$name $value\n");
+}
+
+sub write_section
+{
+    # this methode is made for easy sections writing's overload
+    # must take 2 arguments (directive name, directive value)
+    # and return a string
+    my($self, $name, $value) = @_;
+    return($self->_indent."<$name $value>\n");
+}
+
+sub write_section_closing
+{
+    # this methode is made for easy sections closer writing's overload
+    # take 1 argument (directive name) and return string
+    my($self, $name) = @_;
+    return($self->_indent."</$name>\n");
+}
+
+sub write_comment
+{
+    my($self, $value) = @_;
+    $value =~ s/\n//g;
+    return "# $value\n";
 }
 
 =pod
 
-=head2 add_directive (I<name>=>I<'value'>, [B<-before>=>I<target> | B<-after>=>I<target> | B<-ontop> | B<-onbottom>])
+=head2 ADD
 
-    $obj->add_directive(foo=>'bar', -after=>$obj->directive('oof', -which=>-1));
+    $obj->add
+    (
+        $type, [$name], [$value],
+        [-before => $target | -after => $target | '-ontop' | '-onbottom']
+    );
 
-Add the directive I<foo> with value I<bar> in the context pointed by B<$obj>.
+    $obj->add('section', foo => 'bar', -after => $conf_item_object);
+    $obj->add('comment', 'a simple comment', '-ontop');
+
+Add a line of type I<$type> with name I<foo> and value I<bar> in the context pointed by B<$object>.
 
 Aguments:
 
 =over 4
 
+=item B<C<type>>
+
+Type of object to add (directive, section, comment or blank)
+
 =item B<C<name>>
 
-Directive's name to add.
+Only relevant for directives and sections.
 
 =item B<C<value>>
 
-Value associated with this directive's name
+For directive and section, it defines the value, for comments it
+defined the text.
 
-=item B<C<-before>>=E<gt>I<target>
+=item B<C<-before>> =E<gt> I<target>
 
-insert directive one line before I<target> if is in same context;
+Inserts item one line before I<target>. I<target> _have_ to be in the same context
 
-=item B<C<-after>>=E<gt>I<target>
+=item B<C<-after>> =E<gt> I<target>
 
-insert directive one line after I<target> if is in same context;
+Inserts item one line after I<target>. I<target> _have_ to be in the same context
 
 =item B<C<-ontop>>
 
-insert directive on the fist line of current context;
+Insert item on the fist line of current context;
 
 =item B<C<-onbottom>>
 
-insert directive on the last line of current context;
+Iinsert item on the last line of current context;
 
 =back
 
-Return the added directive.
+Returns the added item
+
+=cut
+
+sub add
+{
+    my $self = shift;
+
+    my($target, $where) = _get_arg(\@_, '-before|-after|-ontop!|-onbottom!');
+
+    # _get_arg return undef on error or empty string on not founded rule
+    return($self->_set_error('malformed arguments'))
+        if(not defined $target);
+    return($self->_set_error('too many arguments'))
+        if(@_ > 3);
+    my($type, $name, $value) = @_;
+
+    return($self->_set_error('method not allowed'))
+        unless($self->{type} eq 'section');
+
+    $where = defined $where ? $where : '-onbottom'; # default behavior
+    if(($where eq '-before' || $where eq '-after') && defined $target)
+    {
+        return $self->_set_error("target `$target' isn\'t an object")
+            unless ref $target && $target->isa(Apache::Admin::Config);
+        return $self->_set_error('invalid target context')
+            unless $target->isin($self);
+    }
+
+    my $index;
+
+    if($where eq '-before')
+    {
+        $index = $target->_get_index;
+    }
+    elsif($where eq '-after')
+    {
+        $index = $target->_get_index + 1;
+    }
+    elsif($where eq '-ontop')
+    {
+        $index = 0;
+    }
+    elsif($where eq '-onbottom' || $where eq '')
+    {
+        $index = -1;
+    }
+    else
+    {
+        return $self->_set_error('malformed arguments');
+    }
+
+    my $item;
+
+    if($type eq 'section')
+    {
+        return $self->_set_error('to few arguments')
+            unless(defined $name and defined $value);
+        my $raw = $self->write_section($name, $value);
+        my $length = () = $raw =~ /\n/g;
+        $item = $self->_insert_section($name, $value, $raw, $length, $index);
+        $item->{raw2} = $self->write_section_closing($name);
+        $item->{length2} = () = $item->{raw2} =~ /\n/g;
+    }
+    elsif($type eq 'directive')
+    {
+        return $self->_set_error('to few arguments')
+            unless(defined $name);
+        my $raw = $self->write_directive($name, $value);
+        my $length = () = $raw =~ /\n/g;
+        $item = $self->_insert_directive($name, $value, $raw, $length, $index);
+    }
+    elsif($type eq 'comment')
+    {
+        # $name contents value here
+        return $self->_set_error('to few arguments')
+            unless(defined $name);
+        $item = $self->_insert_comment($name,
+                    $self->write_comment($name), $index);
+    }
+    elsif($type eq 'blank')
+    {
+        $item = $self->_insert_blank('', $index);
+    }
+    else
+    {
+        return $self->_set_error("invalid type `$type'");
+    }
+
+    return $item;
+}
+
+=pod
+
+=head2 ADD_SECTION
+
+    $obj->add_section(args...)
+
+Same as calling add('section', args...)
+
+=cut
+
+sub add_section
+{
+    my $self = shift;
+    return $self->add('section', @_);
+}
+
+=pod
+
+=head2 ADD_DIRECTIVE
+
+    $obj->add_directive(args...)
+
+Same as calling add('directive', args...)
 
 =cut
 
 sub add_directive
 {
     my $self = shift;
-    
-    my($target, $type) = _get_arg(\@_, '-before|-after|-ontop!|-onbottom!');
-
-    # _get_arg return undef on error or empty string on not founded rule
-    return($self->_set_error('malformed arguments')) if(not defined $target);
-
-    return($self->_set_error('to many arguments')) if(@_ > 2);
-    my($directive, $value) = @_;
-    
-    return($self->_set_error('methode not allowed')) if($self->{type} eq 'directive');
-    $directive = lc $directive if(defined $directive);
-    return($self->_set_error('to few arguments')) unless defined $directive;
-    
-    my $insert_line = $self->_get_insert_line($type, $target);
-    return unless defined $insert_line;
-
-    $self->_insert_line($insert_line, $self->write_directive($directive, $value));
-    _insert_directive($self->_root, $directive, $value, [$insert_line == 0 ? $insert_line : $insert_line-1]);
-
-    return($self->directive($directive, $value));
+    return $self->add('directive', @_);
 }
-
 
 =pod
 
-=head2 directive ([[I<name>], I<value>], [B<-which>=>I<number>])
+=head2 ADD_COMMENT
 
-    @directives_list    = $obj->directive;
-    @directive_values   = $obj->directive(Foo);
-    $directvie_object   = $obj->directive(Foo=>'bar');
+    $obj->add_comment(args...)
 
-Arguments:
-
-=over 4
-
-=item B<C<name>>
-
-the name of directive.
-
-=item B<C<value>>
-
-value of the directive.
-
-=back
-
-This method return :
-
-=over 4
-
-=item -
-
-list of directives in context pointed by B<$obj> if no argument is given.
-
-return a list in list context and a reference to an array in scalar context.
-
-=item -
-
-list of I<foo> directive's values if the only argument is I<foo>.
-
-return a list in list context and a reference to an array in scalar context.
-
-=item -
-
-an object for handling directive called I<foo> with value I<bar> if arguments
-given was I<foo> and I<bar>. Warning, if several directive have the same name and
-value, the last one is taken, may change in future versions.
-
-=back
+Same as calling add('comment', args...)
 
 =cut
 
-sub directive
+sub add_comment
 {
-    my $self    = shift;
-    
-    my $which   = _get_arg(\@_, '-which');
-
-    # _get_arg return undef on error or empty string on not founded rule
-    return($self->_set_error('malformed arguments')) if(not defined $which); 
-    # $which isn't an integer
-    return($self->_set_error('wrong type for "which" argument')) if($which =~ /[^\d\-]/);
-    
-    return($self->_set_error('too many arguments')) if(@_ > 2);
-    my($directive, $value) = @_;
-    
-    return($self->_set_error('method not allowed')) if($self->{type} eq 'directive');
-    $directive = _type(lc($directive), 'directive') if(defined $directive);
-    my $top  = $self->{top};
-    my $root = $self->_root || return undef;
-
-    if(defined $directive)
-    {
-        if(defined $value)
-        {
-            # called like this: $obj->directive(Foo, Bar [, -which=>n])
-            my @directives  = $self->directive(_untype($directive, 'directive'));
-            return($self->_set_error('directive doesn\'t exists'))
-              unless(@directives);
-
-            # get a list of all values $value of directive $directive
-            my @values_index;
-            for(my $i = 0; $i < @directives; $i++)
-            {
-                push(@values_index, $i) if($root->{$directive}->[$i]->[0] eq $value);
-            }
-
-            # if -which not specified, return the last value
-            my $index = $which eq '' ? $values_index[-1] : $values_index[$which];
-
-            return($self->_set_error('directive entry doesn\'t exists'))
-              unless(defined $index);
-
-            my $sub = bless({});
-            $sub->{level}     = sprintf(q(%s->{'%s'}->[%d]), $self->{level}, $directive, $index);
-            $sub->{top}       = $self->{top};
-            $sub->{parent}    = $self;
-            $sub->{type}      = 'directive';
-            $sub->{name}      = $directive;
-            $sub->{value}     = $value;
-            $sub->{to_string} = $sub->{value};
-            return $sub;
-        }
-        else
-        {
-            return($self->_set_error('directive doesn\'t exists')) unless exists $root->{$directive};
-            if($which eq '')
-            {
-                # called like this: $obj->directive(Foo)
-                my @directive_values;
-
-                for(my $n = $#{$root->{$directive}}; $n >= 0; $n--)
-                {
-                    next if($genone && $n != $dircnt-1); # don't bless all objects if user
-                                                         # want only the last one (new API)
-                    my $sub = bless({});
-                    $sub->{level}     = sprintf(q(%s->{'%s'}->[%d]), $self->{level}, $directive, $n);
-                    $sub->{top}       = $self->{top};
-                    $sub->{parent}    = $self;
-                    $sub->{type}      = 'directive';
-                    $sub->{name}      = $directive;
-                    $sub->{value}     = $root->{$directive}->[$n]->[0];
-                    $sub->{to_string} = $sub->{value};
-
-                    # with new api, we have to return the last element in scalar context like normal
-                    # list in scalar context. So we don't bless all unwanted objects instances.
-                    return $sub if(!$self->{oldapi} && !wantarray);
-                        
-                    $directive_values[$n] = $sub;
-                }
-                return(wantarray ? @directive_values : ($self->{oldapi} ? \@directive_values : @directive_values)); 
-                                                       # ascendant compatibility 
-            }
-            else
-            {
-                # called like this: $obj->directive(Foo, -which=>n)
-                if($root->{$directive}->[$which])
-                {
-                    my $sub = bless({});
-                    $sub->{level}     = sprintf(q(%s->{'%s'}->[%d]), $self->{level}, $directive, $which);
-                    $sub->{top}       = $self->{top};
-                    $sub->{parent}    = $self;
-                    $sub->{type}      = 'directive';
-                    $sub->{name}      = $directive;
-                    $sub->{value}     = $root->{$directive}->[$which]->[0];
-                    $sub->{to_string} = $sub->{value};
-                    return($sub);
-                }
-                else
-                {
-                    return undef;
-                }
-            }
-        }
-    }
-    else
-    {
-        if($which eq '')
-        {
-            # called like this: $obj->directive
-
-            my @directives;
-            foreach(_get_directives($root))
-            {
-                my $directive  = $_->[0];
-                my $value      = $_->[1];
-                my $this_which = $_->[3];
-                my $sub = bless({});
-                $sub->{level}     = sprintf(q(%s->{'%s'}->[%d]), $self->{level}, $directive, $this_which);
-                $sub->{top}       = $self->{top};
-                $sub->{parent}    = $self;
-                $sub->{type}      = 'directive';
-                $sub->{name}      = $directive;
-                $sub->{value}     = $value;
-                $sub->{to_string} = _untype($sub->{name}, 'directive');
-
-                # with new api, we have to return the last element in scalar context like normal
-                # list in scalar context. So we don't bless all unwanted objects instances.
-                return $sub if(!$self->{oldapi} && !wantarray);
-
-                push(@directives, $sub);
-            }
-            return(wantarray ? @directives : ($self->{oldapi} ? \@directives : @directives));
-        }
-        else
-        {
-            # called like this: $obj->directive(-which=>n)
-
-            my @directives = _get_directives($root);
-            if(defined $directives[$which])
-            {
-                my $directive  = $directives[$which]->[0];
-                my $value      = $directives[$which]->[1];
-                my $this_which = $directives[$which]->[3];
-                my $sub = bless({});
-                $sub->{level}     = sprintf(q(%s->{'%s'}->[%d]), $self->{level}, $directive, $this_which);
-                $sub->{top}       = $self->{top};
-                $sub->{parent}    = $self;
-                $sub->{type}      = 'directive';
-                $sub->{name}      = $directive;
-                $sub->{value}     = $value;
-                $sub->{to_string} = _untype($sub->{name}, 'directive');
-
-                return $sub;
-            }
-            else
-            {
-                return $self->_set_error('directive doesn\'t exists');
-            }
-        }
-    }
+    my $self = shift;
+    return $self->add('comment', @_);
 }
 
 =pod
 
-=head2 delete ()
+=head2 ADD_BLANK
 
-    $htconf->directive('AddType'=>'.pl')->delete;
-    $htconf->section('File'=>'/path/to/file')->delete;
+    $obj->add_blank(args...)
+
+Same as calling add('blank', args...)
+
+=cut
+
+sub add_blank
+{
+    my $self = shift;
+    return $self->add('blank', @_);
+}
+
+=pod
+
+=head2 DELETE
+
+    $item->delete;
 
 Delete the current context pointed by object. Can be directive or section.
 
@@ -901,48 +732,30 @@ Delete the current context pointed by object. Can be directive or section.
 
 sub delete
 {
-    my $self    = shift;
-    my $root    = $self->_root || return undef;
-    my $top     = $self->{top};
-    my $deleted = 0;
+    my($self) = @_;
 
-    if($self->{type} eq 'section')
+    return $self->_set_error("can't delete top level section")
+        unless defined $self->{parent};
+    
+    my $index = $self->_get_index;
+    if(defined $index)
     {
-        my $lines   = $root->{_pos};
-        for(my $i = 0; $i < @$lines; $i++)
-        {
-            my $offset = $lines->[$i]->[0]; # first section opener tag's line (for trucated line) 
-            my $length = $lines->[++$i]->[-1] - $offset + 1; # last section closer tag's line (for trucated line)
-            $offset -= $deleted;
-            $self->_delete_line($offset+1, $length);
-            $deleted += $length;
-        }
+        splice(@{$self->{parent}->{childs}}, $index, 1);
+        return 1;
     }
-    elsif($self->{type} eq 'directive')
-    {
-        my $offset = $root->[1]->[0];
-        my $length = $root->[1]->[-1] - $offset + 1;
-        $self->_delete_line($offset+1, $length);
-        $deleted = $length;
-    }
-    else
-    {
-        return($self->_set_error('method not allowed'));
-    }
-
-    return($deleted);
+    return;
 }
 
 =pod
 
-=head2 set_value (I<newvalue>)
+=head2 SET_VALUE
 
-    $htconf->directive('File'=>'/path/to/foo')->set_value('/path/to/bar');
+    $obj->set_value($newvalue)
 
 Change the value of a directive or section. If no argument given, return
-the value of object $htconf.
+the value.
 
-=head2 value ()
+=head2 VALUE
 
 Return the value of rule pointed by the object if any.
 
@@ -956,24 +769,13 @@ sub value
 {
     my $self     = shift;
     my $newvalue = shift || return $self->{value};
-    my $top      = $self->{top};
-    my $root     = $self->_root or return undef;
-    my $type     = $self->type;
+
+    my $type     = $self->{type};
     
-    if($type eq 'section')
+    if(grep($type eq $_, qw(section directive comment)))
     {
-        my $offset = $root->{_pos}->[0]->[0];
-        my $length = $root->{_pos}->[0]->[-1] - $offset + 1;
-        print "lkjdsflkj $offset\n";
-        splice(@{$top->{contents_raw}}, $offset, $length, $self->write_section($self->name, $newvalue));
-        $self->_refresh_pos($offset + 1, $length - 1) if($length > 1);
-    }
-    elsif($type eq 'directive')
-    {
-        my $offset = $root->[1]->[0];
-        my $length = $root->[1]->[-1] - $offset + 1;
-        splice(@{$top->{contents_raw}}, $offset, $length, $self->write_directive($self->name, $newvalue));
-        $self->_refresh_pos($offset + 1, $length - 1) if($length > 1);
+        $self->{raw} =~ s/$self->{value}/$newvalue/;
+        $self->{value} = $newvalue;
     }
     else
     {
@@ -985,178 +787,55 @@ sub value
 
 =pod
 
-=head2 move (B<-before>=>I<target> | B<-after>=>I<target> | B<-replace>=>I<target> | B<-tofirst> | B<-tolast>)
+=head2 MOVE
 
-under construction
+    $obj->move
+    (
+        -before => target |
+        -after => $target |
+        -replace => $target |
+        '-ontop' |
+        '-onbottom'
+    )
+
+not yet implemented
 
 =cut
 
 sub move
 {
     my $self = shift;
-    return $self->_set_error('method not allowed') if($self->{type} eq 'top');
-
-    
 }
 
 =pod
 
-=head2 name ()
-
-Return the name of the current pointed directive or section. return undef if object point
-to the top context:
-
-    my $obj = new Apache:Admin::Config ("/path/to/file");
-
-    $obj->name; return undef
-    $obj->directive(-which=>0)->name; return first directive's name
-    $obj->section(Foo, -which=>0)->name; return "Foo"
-
-=cut
-
-sub name
-{
-    my $self = shift;
-    my $type = $self->type;
-    return($type ne 'top' ? _untype($self->{name}, $type) : $self->_set_error('method not allowed'));
-}
-
-=pod
-
-=head2 lines ()
-
-=over 2
-
-=item *
-
-If the caller object point to a directive :
-
-Return a list of lines'number occuped by the object's directive. If more
-than one line'number is return, that's mean the directive is truncated on
-serveral lines :
-
-    18. DirectoryIndex  index.html \
-    19.                 index.shtml \
-    20.                 index.pl \
-    ...
-
-    $obj->directive(DirectoryIndex, -which=>x)->line # return (18, 19, 20)
-
-=item *
-
-If the caller object point to a section :
-
-Return a list of arrayref where all odd indexes are sections-opening and pair
-are sections-closing. Each arrayref conteints a list of lines'number occuped
-by the section rule (if section rule truncated).
-
-    18. <VirtualHost 127.0.0.1 \
-    19.              10.20.30.40 \
-    20.              197.200.30.40>
-    21.     ServerName example.com
-    22. </VirtualHost>
-    ...
-    50. <VirtualHost 127.0.0.1 10.20.30.40 197.200.30.40>
-    51.     ServerAlias www.example.com
-    52.     User        rs
-    53. </VirtualHost>
-
-    $obj->directive(VirtualHost, -which=>x)->lines # return ([18, 19, 20], [22], [50], [53])
-
-=back
-
-=cut
-
-sub lines
-{
-    my $self = shift;
-    my $type = $self->type;
-    return($self->_set_error('method not allowed')) if($type eq 'top');
-    my $root = $self->_root or return undef;
-
-    if($type eq 'directive')
-    {
-        return(map($_+1, @{$root->[1]}));
-    }
-    elsif($type eq 'section')
-    {
-        return(map([map($_+1, @$_)], @{$root->{_pos}}));
-    }
-}
-
-=pod
-
-=head2 first_line ()
+=head2 FIRST_LINE
 
 =cut
 
 sub first_line
 {
-    my $self = shift;
-    my $type = $self->type;
-    my $root = $self->_root or return undef;
-
-    if($type eq 'top')
-    {
-        return 1; # first line of file is always 1
-    }
-    elsif($type eq 'directive')
-    {
-        return($root->[1]->[0]+1);
-    }
-    elsif($type eq 'section')
-    {
-        return($root->{_pos}->[0]->[0]+1);
-    }
+    my($self) = @_;
+    return ($self->{top}->_count_lines($self))[0];
 }
 
 =pod
 
-=head2 last_line ()
+=head2 LAST_LINE
 
 =cut
 
 sub last_line
 {
-    my $self = shift;
-    my $type = $self->type;
-    my $root = $self->_root or return undef;
-
-    if($type eq 'top')
-    {
-        return(scalar(@{$self->{top}->{contents_raw}})); # first line of file is always 1
-    }
-    elsif($type eq 'directive')
-    {
-        return($root->[1]->[-1]+1);
-    }
-    elsif($type eq 'section')
-    {
-        return($root->{_pos}->[-1]->[-1]+1);
-    }
+    my($self) = @_;
+    return ($self->{top}->_count_lines_last($self))[0];
 }
 
 =pod
 
-=head2 dump_line I<line_number>
+=head2 ISIN
 
-    $obj->dump_line($directive->first_line);
-
-Dump the I<line_number> line of current parsed configuration.
-
-=cut
-
-sub dump_line
-{
-    my $self        = shift;
-    my $line_number = shift || return undef;
-
-    return($self->{top}->{contents_raw}->[$line_number - 1]);
-}
-
-=pod
-
-=head2 isin ($section_obj, [-recursif])
+    $obj->($section_obj, ['-recursif'])
 
 Return true if object point to a rule that is in the section represented by $section_obj. If
 C<-recursif> option is present, true is also return if object is a sub-section of target.
@@ -1178,75 +857,74 @@ sub isin
     my $self     = shift;
     my $recursif = _get_arg(\@_, '-recursif!');
     my $target   = shift || return $self->_set_error('too few arguments');
-    return($self->_set_error('method not allowed')) if($self->type eq 'top');
-    return($self->_set_error('target is not an object of myself')) unless(ref $target && $target->isa(Apache::Admin::Config));
-    return($self->_set_error('wrong type for target')) if($target->type eq 'directive');
+    return($self->_set_error('method not allowed'))
+        unless(defined $self->{parent});
+    return($self->_set_error('target is not an object of myself'))
+        unless(ref $target && $target->isa(Apache::Admin::Config));
+    return($self->_set_error('wrong type for target'))
+        unless($target->{type} eq 'section');
 
     if($recursif)
     {
-        return(1) if($target->type eq 'top');
-        return(index($target->{level}, $self->parent->{level}) == 0);
-
-#         my @lines  = $target->lines;
-#         my $line   = $self->first_line;
-#         print "line=$line, lines=", join(' ', map($_->[0], @lines)),"\n";
-#         return($self->_set_error('unexpected error, bad number of lines for target')) if(@lines % 2);
-#         for(my $i = 0; $i <= @lines; $i+=2)
-#         {
-#             return 1 if($line > $lines[$i]->[0] && $line < $lines[$i+1]->[0]);
-#         }
+        return(1) unless(defined $target->{parent});
+        my $parent = $self->{parent};
+        while($parent ne $target)
+        {
+            $parent = $self->{parent} || return;
+        }
     }
     else
     {
-        return($self->parent->{level} eq $target->{level})
+        return(overload::StrVal($self->{parent}) eq overload::StrVal($target))
     }
 
     return 0;
 }
 
-=pod
-
-=head2 parent ()
-
-Return the parent context of object.
-
-$obj is same as $obj->directive(-which=>0)->parent
-
-=cut
-
-sub parent
-{
-    $_[0]->{parent};
-}
-
-=pod
-
-=head2 type ()
-
-Return the type of object. Types can be 'directive', 'section' or 'top'.
-
-=cut
-
-sub type
-{
-    $_[0]->{type};
-}
-
-# used for overload => ""
 sub to_string
 {
     my($self, $other, $inv, $meth) = @_;
-    return overload::StrVal($self) unless defined $self->{to_string};
+    return overload::StrVal($self) unless defined $self->{value};
 
-    if($meth eq 'eq')       { return($other ne $self->{to_string}); }
-    elsif($meth eq 'ne')    { return($other ne $self->{to_string}); }
+    if($meth eq 'eq')       { return($other ne $self->{value}); }
+    elsif($meth eq 'ne')    { return($other ne $self->{value}); }
 
-    return $self->{to_string};
+    return $self->{value};
 }
 
 =pod
 
-=head2 error ()
+=head2 NAME
+
+Returns the name of the current pointed object if any
+
+=head2 PARENT
+
+Returns the parent context of object. This method on the top level object
+returns C<undef>.
+
+=head2 TYPE
+
+Returns the type of object.
+
+=cut
+
+sub name
+{
+    return $_[0]->{name};
+}
+sub parent
+{
+    return $_[0]->{parent};
+}
+sub type
+{
+    return $_[0]->{type};
+}
+
+=pod
+
+=head2 ERROR
 
 Return the last append error.
 
@@ -1257,292 +935,243 @@ sub error
     return $_[0]->{top}->{__last_error__};
 }
 
-sub _root
-{
-    my $self = shift;
-    
-    my $root;
-    eval('$root=$self->{top}->{contents_parsed}'.$self->{level});
-    return($self->_set_error('can\'t get root')) unless(defined $root && ref $root);
-    return($root);
-}
+#
+# Private methods
+#
 
-sub _type
+sub _indent
 {
-    my($name, $type, $value, $which) = @_;
-    my $tag = uc(substr($type, 0, 1));
-    if($tag eq 'S')
+    my($self) = @_;
+    my $parent = $self->parent;
+    my $level = 0;
+    my $indent = $self->{top}->{indent} || 0;
+    while(defined $parent)
     {
-        $which ||= 1;
-        $tag .= $which.':'.$name.'='.$value;
+        $parent = $parent->parent;
+        $level++;
     }
-    else
+
+    return($level 
+        ? (($indent > 0 ? ' ' : "\t") x (abs $indent)) x $level
+        : '');
+}
+
+sub _get_index
+{
+    my($self) = @_;
+    my @pchilds = @{$self->{parent}->{childs}};
+    for(my $i = 0; $i < @pchilds; $i++)
     {
-        $tag .= ":$name";
+        return $i if $pchilds[$i] eq $self;
     }
-    return $tag;
+    return;
 }
 
-sub _untype
+sub _deploy
 {
-    my($name, $type) = @_;
-    $type = uc(substr($type, 0, 1));
-    if(index($name, $type) == 0)
+    join '',
+    map
     {
-        my $value = substr($name, index($name, ':')+1, length $name);
-        return $type eq 'S' ? (split(/=/, $value, 2))[0] : $value;
-    }
-    else
-    {
-        warn("_untype failed at line ", (caller)[2]);
-        return(undef);
-    }
-}
-
-sub _delete_line
-{
-    my($self, $line, $howmany) = @_;
-    return $self->_set_error('bad line number')
-        unless($line !~ /[^\d\-]/);
-    my $index = ($line > 0 ? $line - 1 : $line);
-    splice(@{$self->{top}->{contents_raw}}, $index, $howmany);
-    $self->_refresh_pos($index, $howmany*-1);
-}
-
-sub _insert_line
-{
-    # insert a new line in the file, and reparse it
-    # syntax: $self->_insert_line(line_number, rule1, rule2, rule3...)
-    my $self  = shift;
-    my $line  = $_[0] !~ /[^\d\-]/ ? shift : return $self->_set_error('bad line number');
-
-    my $index = ($line > 0 ? $line - 1 : $line);
-    splice(@{$self->{top}->{contents_raw}}, $index, 0, @_);
-
-    $self->_refresh_pos($index, scalar @_)
-}
-
-sub _refresh_pos
-{
-    my($self, $index, $count, $tree) = @_;
-    $tree = $self->{top}->{contents_parsed}
-        unless defined $tree;
-
-    foreach(keys %$tree)
-    {
-        if(index($_, 'D') == 0)
+        if($_->{type} eq 'section')
         {
-            foreach my $ary (@{$tree->{$_}})
-            {
-                foreach(@{$ary->[1]})
-                {
-                    $_ += $count if($_ >= $index);
-                }
-            }
+            ($_->{raw}, _deploy($_), $_->{raw2});
         }
-        elsif(index($_, 'S') == 0)
+        else
         {
-            $self->_refresh_pos($index, $count, $tree->{$_});
+            $_->{raw};
         }
-        elsif($_ eq '_pos')
-        {
-            foreach $ary (@{$tree->{$_}})
-            {
-                foreach(@$ary)
-                {
-                    $_ += $count if($_ >= $index);
-                }
-            }
-        }
+    } @{$_[0]->{childs}};
+}
+
+sub _count_lines
+{
+    my $c = $_[0]->{'length'} || 0;
+    foreach my $i (@{$_[0]->{childs}})
+    {
+        return($c+1, 1) if(overload::StrVal($_[1]) eq overload::StrVal($i));
+        my($rv, $found) = _count_lines($i, $_[1]);
+        $c += $rv;
+        return($c, 1) if defined $found;
     }
+    return $c + (defined $_[0]->{length2} ? $_[0]->{length2} : 0);
+}
+
+sub _count_lines_last
+{
+    my $c = $_[0]->{'length'};
+    foreach my $i (@{$_[0]->{childs}})
+    {
+        $c += _count_lines($i, $_[1]);
+        return $c if($_[1] eq $i);
+    }
+    return $c + $_[0]->{length2};
 }
 
 sub _insert_directive
 {
-    my($tree, $directive, $value, $pos) = @_;
+    my($tree, $directive_name, $value, $line, $length, $index) = @_;
 
-    # we add a D in front of directive for isolate it from sections
-    $directive = _type(lc($directive), 'directive');
     $value = defined $value ? $value : '';
     $value =~ s/^\s+|\s+$//g;
 
-    push(@{$tree->{$directive}}, [$value, $pos]); #[value, line's position]
+    my $directive = bless({});
+    $directive->{type} = 'directive';
+    $directive->{name} = lc($directive_name);
+    $directive->{value} = $value;
+    $directive->{parent} = $tree;
+    $directive->{top} = $tree->{top};
+    $directive->{raw} = $line;
+    $directive->{'length'} = $length;
+
+    if(defined $index && $index != -1)
+    {
+        splice(@{$tree->{childs}}, $index, 0, $directive);
+    }
+    else
+    {
+        push(@{$tree->{childs}}, $directive);
+    }
+
+    return $directive;
 }
 
 sub _insert_section
 {
-    my($tree, $section, $value, $pos) = @_;
+    my($tree, $section_name, $value, $line, $length, $index) = @_;
 
-    # increment the section counter of same name on same level, used for
-    # select which homonyme section we talk about
-    my $which = ++$tree->{_sections_counter}->{$section};
-    # we add an S in front of section for isolate it from directives 
-    # (followed by the section counter for isolate same named sections)
     $value = defined $value ? $value : '';
     $value =~ s/^\s+|\s+$//g;
-    $section = _type(lc($section), 'section', $value, $which);
 
-    $tree->{$section} ||= {};
-    # save the line number of this section
-    push(@{$tree->{$section}->{_pos}}, $pos);
-    return $tree->{$section};
-}
+    my $section = bless({});
+    $section->{type} = 'section';
+    $section->{name} = lc($section_name);
+    $section->{value} = $value;
+    $section->{parent} = $tree;
+    $section->{childs} = [];
+    $section->{top} = $tree->{top};
+    $section->{raw} = $line;
+    $section->{'length'} = $length;
 
-sub _insert_section_closer
-{
-    my($tree, $pos) = @_;
-    push(@{$tree->{_pos}}, $pos); # save last line of section
-}
-
-# this function returns an array of arrayref. each arrayref contents
-# 0 = typed directive name (with the D: identifier on front)
-# 1 = value
-# 2 = arrayref off lines position
-# 3 = index of same name directives
-sub _get_directives
-{
-    my($tree) = @_;
-    
-    my @directives;
-    foreach(keys %$tree)
+    if(defined $index && $index != -1)
     {
-        if(index($_, 'D') == 0)
-        {
-            my $directive = $_;
-            my $which = 0;
-            foreach(@{$tree->{$_}})
-            {
-                push(@directives, [$directive, @$_, $which++]);
-            }
-        }
-    }
-    return sort {$a->[2]->[0] <=> $b->[2]->[0]} @directives;
-}
-
-sub _get_sections
-{
-    my($tree) = @_;
-
-    my @sections;
-    foreach(keys %$tree)
-    {
-        if(index($_, 'S') == 0)
-        {
-            my $section = $_;
-            my $secname = _untype($section, 'section');
-            my $value = (split(/=/, $section, 2))[1];
-            push(@sections, [$section, $value, $tree->{$section}->{_pos}, $secname]);
-        }
-    }
-
-    my %same;
-
-    # sorting section on first line number of section openner and feed the 3th element
-    # of array: the same section named index
-    @sections = sort {$a->[2]->[0]->[0] <=> $b->[2]->[0]->[0]} @sections;
-    foreach(@sections)
-    {
-        $_->[3] = $same{$_->[3]}++ || 0;
-    }
-    return @sections;
-}
-
-# determine the line number where to insert new line regarding of parameters
-sub _get_insert_line
-{
-    my($self, $type, $target) = @_;
-    my $insert_line;
-
-    $type = defined $type ? $type : '-onbottom'; # default behavior
-    if(($type eq '-before' || $type eq '-after') && defined $target)
-    {
-        return $self->_set_error("target `$target' isn\'t an object")
-            unless ref $target && $target->isa(Apache::Admin::Config);
-        return $self->_set_error('invalid target context')
-            unless $target->isin($self);
-    }
-
-    if($type eq '-before')
-    {
-        $insert_line = $target->first_line;
-    }
-    elsif($type eq '-after')
-    {
-        $insert_line = $target->last_line + 1;
-    }
-    elsif($type eq '-ontop')
-    {
-        $insert_line = $self->type eq 'top' ? $self->first_line : $self->first_line + 1;
-    }
-    elsif($type eq '-onbottom' || $type eq '')
-    {
-        $insert_line = $self->type eq 'top' ? $self->last_line + 1 : $self->last_line;
+        splice(@{$tree->{childs}}, $index, 0, $section);
     }
     else
     {
-        return $self->_set_error('malformed arguments');
+        push(@{$tree->{childs}}, $section);
     }
 
-    return $insert_line;
+    return $section;
+}
+
+sub _insert_comment
+{
+    my($tree, $value, $line, $index) = @_;
+
+    my $comment = bless({});
+    $comment->{type} = 'comment';
+    $comment->{parent} = $tree;
+    $comment->{value} = $value;
+    $comment->{top} = $tree->{top};
+    $comment->{raw} = $line;
+    $comment->{'length'} = 1;
+
+    if(defined $index && $index != -1)
+    {
+        splice(@{$tree->{childs}}, $index, 0, $comment);
+    }
+    else
+    {
+        push(@{$tree->{childs}}, $comment);
+    }
+
+    return $comment;
+}
+
+sub _insert_blank
+{
+    my($tree, $line, $index) = @_;
+
+    my $blank = bless({});
+    $blank->{type} = 'blank';
+    $blank->{parent} = $tree;
+    $blank->{top} = $tree->{top};
+    $blank->{raw} = $line;
+    $blank->{'length'} = 1;
+
+    if(defined $index && $index != -1)
+    {
+        splice(@{$tree->{childs}}, $index, 0, $blank);
+    }
+    else
+    {
+        push(@{$tree->{childs}}, $blank);
+    }
+
+    return $blank;
 }
 
 sub _parse
 {
-    my $self = shift;
+    my($self, $fh) = @_;
     my $file = $self->{htaccess} || '[inline]';
-    my @htaccess = @{$self->{top}->{contents_raw}};
 
-    my %contents_parsed;
     # level is used to stock reference to the curent level, level[0] is the root level
-    my @level = (\%contents_parsed);
-    # last_section is used to ensure that sections open/close are in correct order
-    my @last_section;
-    for(my $n = 0; $n < @htaccess; $n++)
+    my @level = ($self);
+    my $line;
+    my $n = 0;
+    while((defined $fh) && ($line = scalar <$fh>) && (defined $line))
     {
-        my $line = $htaccess[$n];
-        next if($line =~ m/^\s*#/); # ignore comments
-        my @_pos = ($n); # initialise position indicator
-        while($line =~ s/\\$//)
+        $n++;
+        my $length = 1;
+
+        while($line !~ /^\s*#/ && $line =~ s/\\$//)
         {
             # line is truncated, we want the entire line
-            $line .= $htaccess[++$n];
-            push(@_pos, $n); # line positionned on multiple lines
+            $n++;
+            $line .= <$fh> 
+                || return $self->_set_error(sprintf('%s: syntax error at line %d', $file, $n));
+            $length++;
         }
-        $line =~ s/^\s*|\s*$//g;
-        next if($line eq '');
-        _clear_double_spaces($line);
-        if($line =~ /^(\w+)\s*(.*)$/)
+
+        if($line =~ /^\s*#+\s*(.*?)\s*$/)
+        {
+            # it's a comment
+            _insert_comment($level[-1], $1, $line);
+        }
+        elsif($line =~ /^\s*$/)
+        {
+            # it's a blank line
+            _insert_blank($level[-1], $line);
+        }
+        elsif($line =~ /^\s*(\w+)(?:\s+(.*?)|)\s*$/)
         {
             # it's a directive
-            _insert_directive($level[-1], $1, $2, \@_pos);
+            _insert_directive($level[-1], $1, $2, $line, $length);
         }
-        elsif($line =~ /^<\s*(\w+)(?:\s+([^>]+)|\s*)>$/)
+        elsif($line =~ /^\s*<\s*(\w+)(?:\s+([^>]+)|\s*)>\s*$/)
         {
             # it's a section opening
-            my $section_name = lc $1;
-            my $section = _insert_section($level[-1], $section_name, $2, \@_pos);
+            my $section = _insert_section($level[-1], $1, $2, $line, $length);
             push(@level, $section);
-            push(@last_section, $section_name);
         }
-        elsif($line =~ /^<\/\s*(\w+)\s*>$/)
+        elsif($line =~ /^\s*<\/\s*(\w+)\s*>\s*$/)
         {
             # it's a section closing
             my $section_name = lc $1;
-            return $self->_set_error(sprintf('%s: syntax error at line %d', $file, $n+1)) 
-              if(!@last_section || $section_name ne $last_section[-1]);
-            _insert_section_closer($level[-1], \@_pos);
-            pop(@last_section);
+            return $self->_set_error(sprintf('%s: syntax error at line %d', $file, $n)) 
+              if(!@level || $section_name ne $level[-1]->{name});
+            $level[-1]->{raw2} = $line;
+            $level[-1]->{length2} = $length;
             pop(@level);
         }
         else
         {
-            return $self->_set_error(sprintf('%s: syntax error at line %d', $file, $n+1));
+            return $self->_set_error(sprintf('%s: syntax error at line %d', $file, $n));
         }
     }
 
-    eval('use Data::Dumper; print Data::Dumper::Dumper(\%contents_parsed), "\n";') if($Apache::Admin::Config::DEBUG);
-
-    $self->{top}->{contents_parsed} = \%contents_parsed;
+    eval('use Data::Dumper; print Data::Dumper::Dumper($self), "\n";') if($Apache::Admin::Config::DEBUG);
 
     return 1;
 }
@@ -1576,7 +1205,6 @@ sub _get_arg
 sub _init
 {
     my $self = shift;
-    $self->{top}->{contents_raw} = [];
     return $self->_parse;
 }
 
@@ -1597,14 +1225,7 @@ sub _load
         $fh = new FileHandle($htaccess) or return $self->_set_error("can't open `$htaccess' file for reading");
     }
     
-    while(<$fh>)
-    {
-        chomp;
-        push(@htaccess, $_);
-    }
-
-    $self->{top}->{contents_raw} = \@htaccess;
-    return $self->_parse;
+    return $self->_parse($fh);
 }
 
 sub _set_error
@@ -1612,16 +1233,6 @@ sub _set_error
     my $self = shift;
     $Apache::Admin::Config::ERROR = $self->{top}->{__last_error__} = join('', (caller())[0].': ', @_);
     return;
-}
-
-sub _clear_double_spaces
-{
-    # TODO remove all double spaces excepted quoted spaces
-}
-
-DESTROY
-{
-    undef($_[0]->{top});
 }
 
 1;
@@ -1657,6 +1268,30 @@ DESTROY
             last;
         }
     }
+
+    #
+    # Suppress all comments in the file
+    # 
+
+    sub delete_comments
+    {
+        foreach(shift->comment)
+        {
+            $_->delete;
+        }
+    }
+
+    sub delete_all_comments
+    {
+        foreach($_[0]->section)
+        {
+            parse_all($_);
+        }
+        delete_comments($_[0]);
+    }
+
+    delete_all_comments($conf);
+
 
 =head1 AUTHOR
 

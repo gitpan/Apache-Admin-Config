@@ -1,5 +1,20 @@
 Revision history for Perl extension Apache::Admin::Config.
 
+0.50 Fri Jun  7 18:25:39 CEST 2002
+        - Many major bugfix
+        - Complete rewrite of module with new algorithm
+        - Homogenisation of API (may distrub you old applications !)
+        - No longer support old API (-oldapi option)
+        - Now, all methods are overloaded to return its value, but
+          using overloading feature is really deprecated
+        - New: support indentation
+        - New: can handle comment and blank lines
+        - New methods : add, select
+                        add_comment, comment
+                        add_blank, blank
+        - Upgrade documentation
+        - Optimisations, it's now very fast ! =)
+
 0.21 Mon Jun 3 16:39:41 2002
         - Major bugfix: correction of the behavior of the parameters
           '-ontop', '-onbottom', '-after' and '-before' in methods 

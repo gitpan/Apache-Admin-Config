@@ -1,11 +1,6 @@
-package Test::AA::directive;
-
-BEGIN
-{
-    use strict;
-    use Test;
-    plan test => 6;
-}
+use strict;
+use Test;
+plan test => 5;
 
 use Apache::Admin::Config;
 ok(1);
@@ -21,4 +16,3 @@ ok(@dirvals, 5);
 
 my $obj = $dirvals[0];
 ok(defined $obj);
-ok($obj->value, $dirvals[0]);
