@@ -1,4 +1,4 @@
-Apache::Admin::Config 0.07
+Apache::Admin::Config 0.10
 ==========================
 
 INSTALLATION
@@ -10,7 +10,50 @@ To install this module type the following:
    make test
    make install
 
+UPGRADING FROM PREVIOUS VERSIONS
+
+* Upgrading from version 0.08 or earlier: read UPGRADE-0.10
+
 CHANGES
+
+0.10    
+        - Bugfix in test scripts, that makes test fail randomly
+        - Major feature enhancements
+            (DIRECTIVE|SECTION) METHOD
+            - directive() now returns full list of directives, sorted
+              as it comes in the file. Each element of this list is
+              an object that points to the directive entry.
+            - directive(Foo) also returns a full list of value of all
+              "Foo" directive in current context, also sorted as it comes
+              in the file. Each list's element is also an object that
+              points to the directive entry.
+            - directive(Foo, Bar) returns an object that points to the
+              last directive (if more than one) wich has the same
+              directive's name/value. In list context, it returns the
+              full list of same directive's name/value.
+            - directive() can now takes the -which=>N parameter to
+              select the entry's number to return (if exists).
+            ADD_(DIRECTIVE|SECTION) METHOD
+            - can take 4 parameters:
+                - -before=>target  where target is an Apache::Admin::Config
+                  object, that points to a section or directive of the same
+                  context than add_directive() method's object caller. The
+                  directive if added just before the target.
+                - -after=>target idem but after the target.
+                - -ontop  added on the top of current context.
+                - -onbottom  added on the bottom of current context.
+        - Internal parser modification that allows a section to have
+          same name than a directive in the same context without no clash.
+        - New methods (see documentation for more details):
+            - first_line: return the first line of rule pointed by caller object
+            - last_line: return the last
+            - lines: return all lines occuped by the rule
+            - dump_line: dump a line
+            - isin: true if caller object is in the same context than one given in argument
+            - type: return the type of caller object
+            - name: return the name of caller object
+        - API had change, so contructor can take the -oldapi=>1 argument for
+          a backward compatibility
 
 0.07  Thu Sep 20 02:36:17 2001
         - Major change, section and directive methods no any longer 
@@ -53,78 +96,174 @@ NAME
 SYNOPSIS
         use Apache::Admin::Config;
 
+        # Parse an apache configuration file
         my $obj = new Apache::Admin::Config ("/path/to/config_file.conf")
             || die $Apache::Admin::Config::ERROR;
 
-        # getting the full list of directives in current context die if error
-        # (don't use || instead of "or" here !!)
-        my @directives_list = $obj->directive or die $obj->error;
+        #
+        # working with directives
+        #
 
-        # getting the full list of sections in current context or die if error 
-        # (don't use || instead of "or" here !!)
-        my @sections_list = $obj->section or die $obj->error;
+        # Getting the full list of directives in current context. 
 
-        # getting values' list of directive "Foo"
-        my @foo_directive_values = $obj->directive('Foo');
+        # Directive method called without any argument, return a list
+        # of all directive located in the current context. The actual
+        # context is called "top", because it haven't any parent.
+        my @directives_list = $obj->directive;
 
-        # getting values' list of section "Foo"
-        my @foo_section_values = $obj->section('Foo');
+        # The resulting array, is sorted by order of apparence in the
+        # file. So you can easly figure directive's precedence.
+
+        # Each item of @directives_list array is a "magic" string. If
+        # you print one, it return the name of pointed directive.
+        my $directive = $directives_list[3];
+        print $directive; # return "DocumentRoot" for example
+
+        # But this "magic" string is also an object, that have many
+        # methods for manage this directive.
+        print $directive->value;  # "/my/document/root"
+        print $directive->type;   # "directive"
+        $directive->isin($obj);   # true
+        $directive->delete;
+        ...
     
-        # adding directive "Foo" with value "bar" in the current context
-        $obj->add_directive(Foo=>'bar');
-        # adding directive "Foo" with value "bar" in the section <VirtualHost test.com> 
-        # of current context
-        $obj->section(VirtualHost=>'test.com')->add_directive(Foo=>'bar');
-
-        # adding section "Foo" with value "bar" in the current context
-        $obj->add_section(Foo=>'bar');
-        # adding section "Foo" with value "bar" in the section <VirtualHost text.com>
-        # of current context (in two steps)
-        my $subsection = $obj->section(VirtualHost=>'test.com');
-        $subsection->add_section(Foo=>'bar');
-
-        # change directive "Foo" with value "bar" to value "rab"
-        $obj->directive(Foo=>'bar')->value('rab');
-        # same in sub-section
-        $obj->section(VirtualHost=>'test.com')->directive(Foo=>'bar')->value('rab');
+        # this print all current context's directives and it's associated
+        # value :
+        foreach my $directive ($obj->directive)
+        {
+            printf qq(%s: '%s' has value: '%s' at line %d\n), 
+                $directive->type, $directive->name, $directive->value, $directive->first_line;
+        }
     
-        # change section "Foo" with value "bar" to value "rab"
-        $obj->section(Foo=>'bar')->value('rab');
-
-        # delete directive "Foo bar" (the last one if serveral identicales)
-        $obj->directive(Foo=>'bar')->delete;
-
-        # delete section "<Foo bar>...</bar>" (all sections if dispatched several
-        # sections with same name/value)
-        $obj->section(Foo=>'bar')->delete;
+        # possible output:
+        directive: servertype has value: standalone at line 48
+        directive: serverroot has value: "@@ServerRoot@@" at line 61
+        directive: pidfile has value: logs/httpd.pid at line 78
+        directive: scoreboardfile has value: logs/apache_runtime_status at line 86
+        ...
     
-        # save changes in the file
-        $apache_conf->save;
-        # or in another file
-        $apache_conf->save('/path/to/another/file.conf');
+        # you can select which directive you want
+        my $directive = $obj->directive(-which=>8); # you'll get the 8th directive of
+                                                    # the current context
+    
+        # getting the full list of directive who's name is "Foo" in the current context
+        my @foo_directives = $obj->directive('Foo');
+        # or just the 4th
+        my $4th_foo_directive = $obj->directive('Foo', -which=>4);
+
+        # you may want just directives named "Foo" with value "Bar", it return
+        # a list of all directives with these name/value in list context
+        my @foo_bar_directives = $obj->directive(Foo=>'Bar');
+        # or just the last one in scalar context
+        my $foo_bar_directive = $obj->directive(Foo=>'Bar');
+        # or the second one if "-which" option is given.
+        my $foo_bar_directive = $obj->directive(Foo=>'Bar', -which=>2);
+
+        # working on directive "PidFile"
+        my $pidfile = $obj->directive(PidFile=>'logs/httpd.pid');
+
+        # changing value of directive "PidFile logs/httpd.pid" to "PidFile logs/apache.pid"
+        $pidfile->set_value('logs/apache.pid');
+
+        # deleting directive "PidFile logs/apache.pid"
+        $pidfile->delete;
+
+        # or deleting all directives "AddType"
+        map($_->delete, $obj->directive(AddType)); # dangerous
+
+        # adding directive "AddType text/html .shtml" just after the last AddType directive if any
+        # or at the end of file (or section)
+        $obj->add_directive(AddType=>'text/html .shtml', -after=>$obj->directive('AddType', -which=>-1))
+        # only if "AddType text/html .shtml" doesn't exist
+        unless($obj->directive(AddType=>'text/html .shtml'));
+
+        #
+        # working with sections
+        #
+
+        # you can get object to another context like this
+        my $section_directive_foo = $obj->section(Foo=>'Bar');
+        my @directives_list = $section_directive_foo->directive;
+
+        # accessing the section "<file some_file>" in the section "<directory /some/dir>" 
+        # of section "<virtualhost example.com>"
+        my $subsubsubsection = $obj->section(virtualhost=>"example.com")->section(directory=>"/some/dir")->section(file=>"some_file")
+
+        #
+        # reordering lines
+        # 
+
+        # moving all directives "LoadModule" before directives "AddModule" in the current context
+        my $first_addmodule = $obj->directive(AddModule, -which=>0):
+        foreach my $loadmodule ($obj->directive('LoadModule'))
+        {
+            $loadmodule->move(-before=>$first_addmodule);
+              if($loadmodule->line > $first_addmodule->line);
+        }
+    
+        #
+        # save
+        #
+
+        # save change in place
+        $obj->save;
+        # or in another file (sound like "save as...")
+        $obj->save("/path/to/another/file");
 
 DESCRIPTION
-    This module allows you to edit Apache configuration files without
-    modifying comments, indentation, or truncated lines.
+    "Apache::Admin::Config" provides an object interface to handling Apache
+    like configuration files without modifying comments, identation, or
+    truncated lines.
 
 METHODES
-  new [/path/to/file]
+  new ([*/path/to/file*], -oldapi=>*0|1*)
 
     Create or read, if given in argument, an apache like configuration file.
 
-  save [/path/to/file]
+    Arguments:
+
+    *"/path/to/file"*
+        Path to the configuration file to parse. If none given, create a new
+        one.
+
+    *-oldapi*=>*0/1*
+        If true, keep the old api backward compatibility. Read UPGRADE-0.10
+        for more details. Default is false.
+
+  save ([*/path/to/file*])
 
     Write modifications to the configuration file. If a path to a file is
     given, save the modification to this file instead.
 
-  add_section
+  add_section (*name*=>*'value'*, [-before=>*target* | -after=>*target* | -ontop | -onbottom])
 
-        $obj->add_section(foo=>'bar')
+        $obj->add_section(foo=>'bar', -after=>$obj->directive('oof', -which=>-1));
 
-    Add the section named "foo" with value "bar" to the context pointed by
-    $obj.
+    Add the directive *foo* with value *bar* in the context pointed by $obj.
 
-  section [name], [value]
+    Aguments:
+
+    "name"
+        Section's name to add.
+
+    "value"
+        Value associated with this section's name
+
+    "-before"=>*target*
+        insert section one line before *target* if is in same context;
+
+    "-after"=>*target*
+        insert section one line after *target* if is in same context;
+
+    "-ontop"
+        insert section on the fist line of current context;
+
+    "-onbottom"
+        insert section on the last line of current context;
+
+    Return the added section
+
+  section ([[*name*], *value*], [-which=>*number*])
 
         @sections_list      = $obj->section;
         @section_values     = $obj->section(SectionName);
@@ -132,36 +271,65 @@ METHODES
 
     arguments:
 
-    name : the name of section, it's "File" in section <File
-    "/path/to/file"></File</File> value : the value of the section
+    - "name"
+        the name of section, it's File in section <File "*/path/to/file*">
+
+    - "value"
+        the value of the section
 
     This method return :
 
     -   list of sections in current context if no argument is given.
 
-    -   list of sections "foo"'s values if the only argument is "foo".
+    -   list of sections *foo*'s values if the only argument is *foo*.
 
         return a list in list context and a reference to an array in scalar
         context.
 
-    -   an object for the context pointed by the section "foo" with value
-        "bar" if arguments given was "foo" and "bar".
+    -   an object for the context pointed by the section *foo* with value
+        *bar* if arguments given was *foo* and *bar*.
 
-  add_directive
+  add_directive (*name*=>*'value'*, [-before=>*target* | -after=>*target* | -ontop | -onbottom])
 
-        $obj->add_directive(foo=>'bar');
+        $obj->add_directive(foo=>'bar', -after=>$obj->directive('oof', -which=>-1));
 
-    Add the directive "foo" with value "bar" in the context pointed by $obj.
+    Add the directive *foo* with value *bar* in the context pointed by $obj.
 
-  directive
+    Aguments:
 
-        @directives_list    = @{ $obj->directive };
-        @directive_values   = @{ $obj->directive(Foo);
+    "name"
+        Directive's name to add.
+
+    "value"
+        Value associated with this directive's name
+
+    "-before"=>*target*
+        insert directive one line before *target* if is in same context;
+
+    "-after"=>*target*
+        insert directive one line after *target* if is in same context;
+
+    "-ontop"
+        insert directive on the fist line of current context;
+
+    "-onbottom"
+        insert directive on the last line of current context;
+
+    Return the added directive.
+
+  directive ([[*name*], *value*], [-which=>*number*])
+
+        @directives_list    = $obj->directive;
+        @directive_values   = $obj->directive(Foo);
         $directvie_object   = $obj->directive(Foo=>'bar');
 
     Arguments:
 
-    name : the name of directive. value : value of the directive.
+    "name"
+        the name of directive.
+
+    "value"
+        value of the directive.
 
     This method return :
 
@@ -171,17 +339,17 @@ METHODES
         return a list in list context and a reference to an array in scalar
         context.
 
-    -   list of "foo" directive's values if the only argument is "foo".
+    -   list of *foo* directive's values if the only argument is *foo*.
 
         return a list in list context and a reference to an array in scalar
         context.
 
-    -   an object for manipulating directive called "foo" with value "bar"
-        if arguments given was "foo" and "bar". Warning, if several
-        directive have the same name and value, the last one is taken, may
-        change in future versions.
+    -   an object for handling directive called *foo* with value *bar* if
+        arguments given was *foo* and *bar*. Warning, if several directive
+        have the same name and value, the last one is taken, may change in
+        future versions.
 
-  delete
+  delete ()
 
         $htconf->directive('AddType'=>'.pl')->delete;
         $htconf->section('File'=>'/path/to/file')->delete;
@@ -189,19 +357,118 @@ METHODES
     Delete the current context pointed by object. Can be directive or
     section.
 
-  value [newvalue]
+  set_value (*newvalue*)
 
-        $htconf->directive('File'=>'/path/to/foo')->value('/path/to/bar');
+        $htconf->directive('File'=>'/path/to/foo')->set_value('/path/to/bar');
 
     Change the value of a directive or section. If no argument given, return
     the value of object $htconf.
 
-  error
+  value ()
+
+    Return the value of rule pointed by the object if any.
+
+    ("value" and "set_value" are the same method)
+
+  move (-before=>*target* | -after=>*target* | -replace=>*target* | -tofirst | -tolast)
+
+    under construction
+
+  name ()
+
+    Return the name of the current pointed directive or section. return
+    undef if object point to the top context:
+
+        my $obj = new Apache:Admin::Config ("/path/to/file");
+
+        $obj->name; return undef
+        $obj->directive(-which=>0)->name; return first directive's name
+        $obj->section(Foo, -which=>0)->name; return "Foo"
+
+  lines ()
+
+    * If the caller object point to a directive :
+
+      Return a list of lines'number occuped by the object's directive. If
+      more than one line'number is return, that's mean the directive is
+      truncated on serveral lines :
+
+          18. DirectoryIndex  index.html \
+          19.                 index.shtml \
+          20.                 index.pl \
+          ...
+
+          $obj->directive(DirectoryIndex, -which=>x)->line # return (18, 19, 20)
+
+    * If the caller object point to a section :
+
+      Return a list of arrayref where all odd indexes are sections-opening
+      and pair are sections-closing. Each arrayref conteints a list of
+      lines'number occuped by the section rule (if section rule truncated).
+
+          18. <VirtualHost 127.0.0.1 \
+          19.              10.20.30.40 \
+          20.              197.200.30.40>
+          21.     ServerName example.com
+          22. </VirtualHost>
+          ...
+          50. <VirtualHost 127.0.0.1 10.20.30.40 197.200.30.40>
+          51.     ServerAlias www.example.com
+          52.     User        rs
+          53. </VirtualHost>
+
+          $obj->directive(VirtualHost, -which=>x)->lines # return ([18, 19, 20], [22], [50], [53])
+
+  first_line ()
+
+  last_line ()
+
+  dump_line *line_number*
+
+        $obj->dump_line($directive->first_line);
+
+    Dump the *line_number* line of current parsed configuration.
+
+  isin ($section_obj, [-recursif])
+
+    Return true if object point to a rule that is in the section represented
+    by $section_obj. If "-recursif" option is present, true is also return
+    if object is a sub-section of target.
+
+        <section target>
+            <sub section>
+                directive test
+            </sub>
+        </section>
+
+        $test_directive->isin($target_section)              => return false
+        $test_directive->isin($sub_section)                 => return true
+        $test_directive->isin($target_section, '-recursif') => return true
+
+  parent ()
+
+    Return the parent context of object.
+
+    $obj is same as $obj->directive(-which=>0)->parent
+
+  type ()
+
+    Return the type of object. Types can be 'directive', 'section' or 'top'.
+
+  error ()
 
     Return the last append error.
 
 AUTHOR
     Olivier Poitrey <rs@rhapsodyk.net>
+
+AVAILABILITY
+    The official FTP location is :
+
+    ftp://ftp.rhapsodyk.net/pub/devel/perl/Apache-Admin-Config-current.tar.g
+    z
+
+    Also available on CPAN.
 
 LICENCE
     This program is free software; you can redistribute it and/or modify it
@@ -221,52 +488,4 @@ LICENCE
 
 COPYRIGHT
     Copyright (C) 2001 - Olivier Poitrey
-
-HISTORY
-    $Log: README,v $
-    Revision 1.11  2001/09/20 00:52:26  rs
-    *** empty log message ***
-
-    Revision 1.10  2001/09/20 00:51:55  rs
-    on the way of O.07 release
- Revision 1.20 2001/09/20 00:43:31 rs don't confuse
-    array and list !
-
-    Revision 1.18 2001/09/20 00:25:59 rs section and directive now return an
-    array if called in array context
-
-    Revision 1.17 2001/09/17 23:44:06 rs minor bugfix
-
-    Revision 1.16 2001/09/17 23:12:53 rs Make a real quick and dirty
-    documentation value() now return the context value if called without
-    arguments new() can now be called without arguments, save() need one in
-    this case
-
-    Revision 1.15 2001/08/23 01:05:35 rs update of documentation's
-    DESCRIPTION section
-
-    Revision 1.14 2001/08/18 13:38:25 rs fix major bug, if config file
-    wasn't exist, module won't work
-
-    Revision 1.13 2001/08/18 12:50:14 rs value method wasn't take the
-    appropriate value for change it
-
-    Revision 1.12 2001/08/18 12:46:15 rs $root value was not defined !
-
-    Revision 1.11 2001/08/18 12:39:35 rs migrate to 0.05
-
-    Revision 1.10 2001/08/18 12:39:15 rs bug fix in value method, $master
-    wasn't defined, cause method to not work at all
-
-    Revision 1.9 2001/08/16 23:41:59 rs fix bug in directive method :
-    directive foo doesn't exists @{$conf->directive("foo")};
-    $conf->add_directive(foo=>'bar'); Modification of non-creatable array
-    value attempted, subscript -1 at ... line 358.
-
-    Revision 1.8 2001/08/16 23:07:04 rs fix a bug in directive methode.
-
-    Revision 1.7 2001/08/15 23:48:33 rs Fix a major bug that cause "syntaxe
-    error" on directives that haven't values like "clearmodulelist"
-
-    Revision 1.6 2001/08/14 09:49:07 rs adding some pod sections
 

@@ -1,5 +1,44 @@
 Revision history for Perl extension Apache::Admin::Config.
 
+0.10    
+        - Bugfix in test scripts, that makes test fail randomly
+        - Major feature enhancements
+            (DIRECTIVE|SECTION) METHOD
+            - directive() now returns full list of directives, sorted
+              as it comes in the file. Each element of this list is
+              an object that points to the directive entry.
+            - directive(Foo) also returns a full list of value of all
+              "Foo" directive in current context, also sorted as it comes
+              in the file. Each list's element is also an object that
+              points to the directive entry.
+            - directive(Foo, Bar) returns an object that points to the
+              last directive (if more than one) wich has the same
+              directive's name/value. In list context, it returns the
+              full list of same directive's name/value.
+            - directive() can now takes the -which=>N parameter to
+              select the entry's number to return (if exists).
+            ADD_(DIRECTIVE|SECTION) METHOD
+            - can take 4 parameters:
+                - -before=>target  where target is an Apache::Admin::Config
+                  object, that points to a section or directive of the same
+                  context than add_directive() method's object caller. The
+                  directive if added just before the target.
+                - -after=>target idem but after the target.
+                - -ontop  added on the top of current context.
+                - -onbottom  added on the bottom of current context.
+        - Internal parser modification that allows a section to have
+          same name than a directive in the same context without no clash.
+        - New methods (see documentation for more details):
+            - first_line: return the first line of rule pointed by caller object
+            - last_line: return the last
+            - lines: return all lines occuped by the rule
+            - dump_line: dump a line
+            - isin: true if caller object is in the same context than one given in argument
+            - type: return the type of caller object
+            - name: return the name of caller object
+        - API had change, so contructor can take the -oldapi=>1 argument for
+          a backward compatibility
+
 0.07  Thu Sep 20 02:36:17 2001
         - Major change, section and directive methods no any longer 
           return an arrayref in list context but a simple list.
