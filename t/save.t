@@ -1,6 +1,6 @@
 use strict;
 use Test;
-plan test => 885;
+plan test => 886;
 
 use Apache::Admin::Config;
 ok(1);

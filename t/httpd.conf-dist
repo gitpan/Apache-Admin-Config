@@ -669,7 +669,8 @@ AddLanguage cz .cz
 # Just list the languages in decreasing order of preference. We have
 # more or less alphabetized them here. You probably want to change this.
 #
-LanguagePriority en da nl et fr de el it pt ltz ca es sv
+LanguagePriority en da nl et fr de \
+el it pt ltz ca es sv
 
 #
 # AddType allows you to tweak mime.types without actually editing it, or to

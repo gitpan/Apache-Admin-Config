@@ -1,4 +1,4 @@
-Apache::Admin::Config 0.54
+Apache::Admin::Config 0.55
 ==========================
 
 INSTALLATION
@@ -9,154 +9,6 @@ To install this module type the following:
    make
    make test
    make install
-
-UPGRADING FROM PREVIOUS VERSIONS
-
-* Upgrading from version 0.08 or earlier: read UPGRADE-0.10
-
-CHANGES
-
-Revision history for Perl extension Apache::Admin::Config.
-
-O.54 Sun Aug  4 15:59:57 CEST 2002
-        - Major bugfix in save method (thanks to Szilveszter Farkas)
-        - internal variables rename
-
-0.53 Mon Jul 15 14:36:56 CEST 2002
-        - Bugfix in saveas method
-
-0.52 Mon Jul 15 14:01:11 CEST 2002
-        - Correct a big memory leak problem (thanks to Scott Beck)
-        - Misc bugfix
-
-0.51 Fri Jun  7 19:12:02 CEST 2002
-        - Bugfix in select method
-
-0.50 Fri Jun  7 18:25:39 CEST 2002
-        - Many major bugfix
-        - Complete rewrite of module with new algorithm
-        - Homogenisation of API (may distrub you old applications !)
-        - No longer support old API (-oldapi option)
-        - Now, all methods are overloaded to return its value, but
-          using overloading feature is really deprecated
-        - New: support indentation
-        - New: can handle comment and blank lines
-        - New methods : add, select
-                        add_comment, comment
-                        add_blank, blank
-        - Upgrade documentation
-        - Optimisations, it's now very fast ! =)
-
-0.21 Mon Jun 3 16:39:41 2002
-        - Major bugfix: correction of the behavior of the parameters
-          '-ontop', '-onbottom', '-after' and '-before' in methods 
-          'add_directive' and 'add_section'.
-
-0.20 Mon Jun 3 11:03:05 2002
-        - Many major bugfix
-        - Algorithm rewriten, it's 65 times faster !
-
-0.16 Thu Apr 11 16:44:53 2002
-        - Major bugfix: no longer merging namespace of identical 
-          sections (same name/value)
-
-0.15 Tue Dec 11 14:18:07 2001
-        - Minor bugfix: add_(section|directive) with option -onbottom
-          were dont work properly
-        - Added dump_raw() method 
-
-0.14 Sat Dec  8 14:14:50 2001
-        - Major bugfix that cause an endless loop in the constructor
-          with perl 5.005 and maybe 5.6
-        - Some corrections in error messages
-
-0.13 Thu Dec  6 11:26:05 2001
-        - Fix compatibility problem with perl 5.005, thinks to 
-          Anton Berezin
-        - Bigfix, error when add_(directive|section) on an empty
-          file
-
-0.12 Sun Nov 11 10:49:40 2001
-        - New feature: you now can pase a file handle to the constructor
-          new() and the save() method instead of a path (thanks to
-          Peter Suschlik for his patch).
-        
-0.11 Thu Oct 25 20:57:52 2001
-        - Bugfix in add_section method. add_section will add entries
-          before the last context's section line.
-
-0.10 Thu Oct 12 02:36:17 2001
-        - Bugfix in test scripts, that makes test fail randomly
-        - Major feature enhancements
-            (DIRECTIVE|SECTION) METHOD
-            - directive() now returns full list of directives, sorted
-              as it comes in the file. Each element of this list is
-              an object that points to the directive entry.
-            - directive(Foo) also returns a full list of value of all
-              "Foo" directive in current context, also sorted as it comes
-              in the file. Each list's element is also an object that
-              points to the directive entry.
-            - directive(Foo, Bar) returns an object that points to the
-              last directive (if more than one) wich has the same
-              directive's name/value. In list context, it returns the
-              full list of same directive's name/value.
-            - directive() can now takes the -which=>N parameter to
-              select the entry's number to return (if exists).
-            ADD_(DIRECTIVE|SECTION) METHOD
-            - can take 4 parameters:
-                - -before=>target  where target is an Apache::Admin::Config
-                  object, that points to a section or directive of the same
-                  context than add_directive() method's object caller. The
-                  directive if added just before the target.
-                - -after=>target idem but after the target.
-                - -ontop  added on the top of current context.
-                - -onbottom  added on the bottom of current context.
-        - Internal parser modification that allows a section to have
-          same name than a directive in the same context without no clash.
-        - New methods (see documentation for more details):
-            - first_line: return the first line of rule pointed by caller object
-            - last_line: return the last
-            - lines: return all lines occuped by the rule
-            - dump_line: dump a line
-            - isin: true if caller object is in the same context than one given in argument
-            - type: return the type of caller object
-            - name: return the name of caller object
-        - API had change, so contructor can take the -oldapi=>1 argument for
-          a backward compatibility
-
-0.07  Thu Sep 20 02:36:17 2001
-        - Major change, section and directive methods no any longer 
-          return an arrayref in list context but a simple list.
-          Documentation corrected (thanx to Nathan Wiger for this 
-          suggestion).
-
-0.06  Tue Sep 18 01:09:24 2001
-        - Make a quick and dirty documentation
-        - value() return the context value if no arguments given
-        - new() can be called without argument, save() need an 
-          argument in this case
-
-0.05  Sat Aug 18 14:39:45 2001
-        - Major bug fix, if config file wasn't exists, module won't work !
-        - Bug fix, value method wasn't took the appropriate value for change
-          it, resulted to an unchanged value
-        - Bug fix, $master and $root value was undefined in value method,
-          so value wasn't work at all
-
-0.04  Fri Aug 17 01:42:16 2001
-        - Fix a minor bug in directive method.
-
-0.03  Fri Aug 17 01:07:17 2001
-        - Fix a major bug in directive method.
-
-0.02  Thu Aug 16 01:48:54 2001
-        - Put module on CPAN
-        - Fix a very major bug that cause "syntax error" from parser on 
-          directives with no value like "clearmodulelist", thanx A2 for
-          this report.
-
-0.01  Sun Aug 12 11:58:10 2001
-	- Original version; created by h2xs 1.21 with options -AX -n Apache::Admin
 
 NAME
     Apache::Admin::Config - A common module to manipulate Apache
@@ -600,6 +452,10 @@ AVAILABILITY
     CVS repository on the web:
 
     http://www.rhapsodyk.net/cgi-bin/cvsweb/Apache-Admin-Config/
+
+BUGS
+    Please send bug-reports to aac@list.rhapsodyk.net. You can subscribe to
+    the list by sending an empty mail to aac-subscribe@list.rhapsodyk.net.
 
 LICENCE
     This library is free software; you can redistribute it and/or modify it

@@ -4,7 +4,7 @@ use 5.005;
 use strict;
 use FileHandle;
 
-$Apache::Admin::Config::VERSION = '0.54';
+$Apache::Admin::Config::VERSION = '0.55';
 $Apache::Admin::Config::DEBUG   = 0;
 
 =pod
@@ -213,7 +213,7 @@ sub new
     my $tree = $self->{tree} = new Apache::Admin::Config::Tree(@_)
         or return;
 
-    if(defined $htaccess && (ref $htaccess eq 'GLOB' || -f $htaccess)) # trying to handle GLOBs
+    if(defined $htaccess)
     {
         $tree->_load($htaccess) || return undef;
     }
@@ -810,10 +810,47 @@ sub value
 
     my $type     = $self->{type};
     
-    if(grep($type eq $_, qw(section directive comment)))
+    if($type eq 'directive' or $type eq 'section')
     {
-        $self->{raw} =~ s/$self->{value}/$newvalue/;
-        $self->{value} = $newvalue;
+        # keep indentation
+        (my $indent = $self->{raw}) =~ s/^(\s*).*$/$1/s;
+        if($newvalue =~ /\n/)
+        {
+            # new value is multilines
+            # write the raw version
+            $self->{raw} = sprintf
+            (
+                $indent . ($type eq 'directive' ? '%s %s' : '<%s %s>')."\n",
+                $self->{name},
+                join(" \\\n", split(/\n/, $newvalue)),
+            );
+            # clean it
+            $self->{value} = join(' ', map {s/^\s*|\s*$//g; $_} split(/\n/, $newvalue));
+            # count lines
+            $self->{length} = 1 + $newvalue =~ s/\n//g;
+        }
+        else
+        {
+            if($type eq 'directive')
+            {
+                $self->{raw} = "$indent$self->{name} $newvalue\n";
+            }
+            else
+            {
+                $self->{raw} = "$indent<$self->{name} $newvalue>\n";
+            }
+            $self->{value} = $newvalue;
+            $self->{length} = 1;
+        }
+    }
+    elsif($type eq 'comment')
+    {
+        $newvalue = join(' ', split(/\n/, $newvalue));
+        # keep spaces before and after the sharp comment and the
+        # number of sharps used (it's pure cosmetic) and put it on
+        # front of the new comment
+        $self->{raw} =~ s/^(\s*\#+\s*).*$/$1$newvalue\n/s;
+        $self->{value} = $newvalue
     }
     else
     {
@@ -1208,50 +1245,57 @@ sub _parse
 
     # level is used to stock reference to the curent level, level[0] is the root level
     my @level = ($self);
-    my $line;
+    my($line, $raw_line);
     my $n = 0;
     while((defined $fh) && ($line = scalar <$fh>) && (defined $line))
     {
         $n++;
         my $length = 1;
+        $raw_line = $line;
 
         while($line !~ /^\s*#/ && $line =~ s/\\$//)
         {
             # line is truncated, we want the entire line
             $n++;
-            $line .= <$fh> 
-                || return $self->_set_error(sprintf('%s: syntax error at line %d', $file, $n));
             $length++;
+            chomp($line);
+            my $next .= <$fh> 
+                or return $self->_set_error(sprintf('%s: syntax error at line %d', $file, $n));
+            $raw_line .= $next;
+            $next =~ s/^\s*|\s*$//g;
+            $line .= $next;
         }
 
-        if($line =~ /^\s*#+\s*(.*?)\s*$/)
+        $line =~ s/^\s*|\s*$//g;
+
+        if($line =~ /^#+\s*(.*?)$/)
         {
             # it's a comment
-            _insert_comment($level[-1], $1, $line);
+            _insert_comment($level[-1], $1, $raw_line);
         }
-        elsif($line =~ /^\s*$/)
+        elsif($line eq '')
         {
             # it's a blank line
-            _insert_blank($level[-1], $line);
+            _insert_blank($level[-1], $raw_line);
         }
-        elsif($line =~ /^\s*(\w+)(?:\s+(.*?)|)\s*$/)
+        elsif($line =~ /^(\w+)(?:\s+(.*?)|)$/)
         {
             # it's a directive
-            _insert_directive($level[-1], $1, $2, $line, $length);
+            _insert_directive($level[-1], $1, $2, $raw_line, $length);
         }
-        elsif($line =~ /^\s*<\s*(\w+)(?:\s+([^>]+)|\s*)>\s*$/)
+        elsif($line =~ /^<\s*(\w+)(?:\s+([^>]+)|\s*)>$/)
         {
             # it's a section opening
-            my $section = _insert_section($level[-1], $1, $2, $line, $length);
+            my $section = _insert_section($level[-1], $1, $2, $raw_line, $length);
             push(@level, $section);
         }
-        elsif($line =~ /^\s*<\/\s*(\w+)\s*>\s*$/)
+        elsif($line =~ /^<\/\s*(\w+)\s*>$/)
         {
             # it's a section closing
             my $section_name = lc $1;
             return $self->_set_error(sprintf('%s: syntax error at line %d', $file, $n)) 
               if(!@level || $section_name ne $level[-1]->{name});
-            $level[-1]->{raw2} = $line;
+            $level[-1]->{raw2} = $raw_line;
             $level[-1]->{length2} = $length;
             pop(@level);
         }
@@ -1404,6 +1448,11 @@ CVS_RSH=ssh cvs -d anonymous@cvs.rhapsodyk.net:/devel co Apache-Admin-Config
 CVS repository on the web:
 
 http://www.rhapsodyk.net/cgi-bin/cvsweb/Apache-Admin-Config/
+
+=head1 BUGS
+
+Please send bug-reports to aac@list.rhapsodyk.net. You can subscribe to the list
+by sending an empty mail to aac-subscribe@list.rhapsodyk.net.
 
 =head1 LICENCE
 

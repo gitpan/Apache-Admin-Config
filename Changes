@@ -1,5 +1,8 @@
 Revision history for Perl extension Apache::Admin::Config.
 
+0.55 Sun Aug 11 23:01:06 CEST 2002
+        - Rewrite of line continuation mechanism
+
 O.54 Sun Aug  4 15:59:57 CEST 2002
         - Major bugfix in save method (thanks to Szilveszter Farkas)
         - internal variables rename
