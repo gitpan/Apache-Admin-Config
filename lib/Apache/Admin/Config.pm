@@ -7,7 +7,7 @@ BEGIN
     use FileHandle;
     use overload nomethod => \&to_string;
 
-    $Apache::Admin::Config::VERSION = '0.12';
+    $Apache::Admin::Config::VERSION = '0.13';
     $Apache::Admin::Config::DEBUG   = 0;
 }
 
@@ -499,7 +499,7 @@ sub section
         }
         else
         {
-            if(exists $root->{_sorted_sections}->[$which])
+            if(defined $root->{_sorted_sections}->[$which])
             {
                 my $section = $root->{_sorted_sections}->[$which]->[0];
                 my $entry   = $root->{_sorted_sections}->[$which]->[1];
@@ -790,9 +790,9 @@ sub directive
         else
         {
             # called like this: $obj->directive(-which=>n)
-            #return(exists $root->{_sorted_directives}->[$which] ? $root->{_sorted_directives}->[$which]->[0] : undef); # TODO return an object...
+            #return(defined $root->{_sorted_directives}->[$which] ? $root->{_sorted_directives}->[$which]->[0] : undef); # TODO return an object...
 
-            if(exists $root->{_sorted_directives}->[$which])
+            if(defined $root->{_sorted_directives}->[$which])
             {
                 my $directive  = $root->{_sorted_directives}->[$which]->[0];
                 my $this_which = $root->{_sorted_directives}->[$which]->[2];
@@ -1229,7 +1229,7 @@ sub _insert
     my $self  = shift;
     my $line  = $_[0] !~ /[^\d\-]/ ? shift : return $self->_set_error('bad line number');
 
-    splice(@{$self->{top}->{contents_raw}}, $line - 1, 0, @_);
+    splice(@{$self->{top}->{contents_raw}}, ($line > 0 ? $line - 1 : $line), 0, @_);
     $self->_parse;
 }
 

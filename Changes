@@ -1,5 +1,11 @@
 Revision history for Perl extension Apache::Admin::Config.
 
+0.13 Thu Dec  6 11:26:05 2001
+        - Fix compatibility problem with perl 5.005, thinks to 
+          Anton Berezin
+        - Bigfix, error when add_(directive|section) on an empty
+          file
+
 0.12 Sun Nov 11 10:49:40 2001
         - New feature: you now can pase a file handle to the constructor
           new() and the save() method instead of a path (thanks to
