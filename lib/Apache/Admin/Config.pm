@@ -7,7 +7,7 @@ BEGIN
     use FileHandle;
     use overload nomethod => \&to_string;
 
-    $Apache::Admin::Config::VERSION = '0.16';
+    $Apache::Admin::Config::VERSION = '0.20';
     $Apache::Admin::Config::DEBUG   = 0;
 }
 
@@ -259,10 +259,16 @@ B<save()> method.
 
 sub dump_raw
 {
-    my $self = shift;
+    my($self) = @_;
     return($self->_set_error('only root object can call dump_raw method')) unless($self->{type} eq 'top');
 
     return(join('', map("$_\n", @{$self->{top}->{contents_raw}})));
+}
+
+sub dump_struct
+{
+    my($self) = @_;
+    eval('use Data::Dumper; Data::Dumper::Dumper($self->{top}->{contents_parsed}), "\n";');
 }
 
 sub write_section
@@ -363,14 +369,17 @@ sub add_section
     }
     
     my $which = $self->_get_section_before_line($section_name, $insert_line);
-    print "w=$which";
     
-    $self->_insert
+    $self->_insert_line
     (
         $insert_line, 
         $self->write_section($section_name, $entry),
         $self->write_section_closing($section_name)
     );
+
+    my $index = $insert_line == 0 ? $insert_line : $insert_line-1;
+    my $new_section_hashref = _insert_section($self->_root, $section_name, $entry, [$index]);
+    _insert_section_closer($new_section_hashref, [$index+1]);
 
     return($self->section($section_name, $entry, ($which ? ('-which',$which) : ())));
 }
@@ -379,17 +388,15 @@ sub _get_section_before_line
 {
     my($self, $section_name, $line) = @_;
     my $root = $self->_root;
-    my @befores;
 
     my $n = 0;
-    foreach (@{$root->{_sorted_sections}})
+    foreach (_get_sections($root))
     {
-        my($sec_name, $sec_val, $sec_id) = @$_;
-        $n++;
+        my($sec_tag, $sec_pos) = @$_[0,2];
+        my $sec_name = _untype($sec_tag, 'section');
         next unless $sec_name eq $section_name;
-        my $section_tag = _type($sec_name, 'section', $sec_val, $sec_id);
-        my $secline = $root->{$section_tag}->{_pos}->[-1]->[-1]+1;
-        print $secline, $line;
+        $n++;
+        my $secline = $sec_pos->[-1]->[-1]+1;
         return $n-1 if($secline > $line)
     }
 
@@ -502,29 +509,30 @@ sub section
 
             my @section_values;
             my $n = 0;
-            foreach(@{$root->{_sorted_sections}})
+            foreach(_get_sections($root))
             {
-                next unless($_->[0] eq $section_name);
+                my($sec_tag, $sec_val) = @$_;
+                my $sec_name = _untype($sec_tag, 'section');
+                next unless($sec_name eq $section_name);
+
                 if(length $which)
                 {
                     next unless $n++ == $which;
                 }
 
-                my($sec_name, $sec_val, $sec_id) = @$_;
-                my $section_tag = _type($sec_name, 'section', $sec_val, $sec_id);
                 my $sub = bless({});
-                $sub->{level}     = sprintf(q(%s->{'%s'}), $self->{level}, $section_tag);
+                $sub->{level}     = sprintf(q(%s->{'%s'}), $self->{level}, $sec_tag);
                 $sub->{top}       = $top;
                 $sub->{parent}    = $self;
                 $sub->{type}      = 'section';
-                $sub->{name}      = $section_tag;
+                $sub->{name}      = $sec_tag;
                 $sub->{value}     = $sec_val;
                 $sub->{to_string} = $sub->{value};
 
                 $which eq '' ? push(@section_values, $sub) : return $sub;
             }
             
-            return(wantarray ? @section_values : ($self->{oldapi} ? \@section_values : $section_values[-1]));
+            return(wantarray ? @section_values : ($self->{oldapi} ? \@section_values : @section_values));
         }
     }
     else
@@ -532,17 +540,16 @@ sub section
         if(not length $which)
         {
             my @sections;
-            for(my $n = $#{$root->{_sorted_sections}}; $n >= 0; $n--)
+            foreach(_get_sections($root))
             {
-                my $s = $root->{_sorted_sections}->[$n];
-                my($sec_name, $sec_val, $sec_id) = @$s;
-                my $section_tag = _type($sec_name, 'section', $sec_val, $sec_id);
+                my($sec_tag, $sec_val) = @$_;
+                my $sec_name = _untype($sec_tag, 'section');
                 my $sub = bless({});
-                $sub->{level}     = sprintf(q(%s->{'%s'}), $self->{level}, $section_tag);
+                $sub->{level}     = sprintf(q(%s->{'%s'}), $self->{level}, $sec_tag);
                 $sub->{top}       = $top;
                 $sub->{parent}    = $self;
                 $sub->{type}      = 'section';
-                $sub->{name}      = $section_tag;
+                $sub->{name}      = $sec_tag;
                 $sub->{value}     = $sec_val;
                 $sub->{to_string} = $sec_name;
 
@@ -550,24 +557,24 @@ sub section
                 # list in scalar context. So we don't bless all unwanted objects instances.
                 return $sub if(!$self->{oldapi} && !wantarray);
 
-                $sections[$n] = $sub;
+                push(@sections, $sub);
             }
             
-            return(wantarray ? @sections : \@sections);
+            return(wantarray ? @sections : ($self->{oldapi} ? \@sections : @sections));
         }
         else
         {
-            if(defined $root->{_sorted_sections}->[$which])
+            my @sections = _get_sections($root);
+            if(defined $sections[$which])
             {
-                my($sec_name, $sec_val, $sec_id) = @{$root->{_sorted_sections}->[$which]};
-                my $section_tag = _type($sec_name, 'section', $sec_val, $sec_id);
-
+                my($sec_tag, $sec_val) = $sections[$which];
+                my $sec_name = _untype($sec_tag, 'section');
                 my $sub = bless({});
-                $sub->{level}     = sprintf(q(%s->{'%s'}), $self->{level}, $section_tag);
+                $sub->{level}     = sprintf(q(%s->{'%s'}), $self->{level}, $sec_tag);
                 $sub->{top}       = $top;
                 $sub->{parent}    = $self;
                 $sub->{type}      = 'section';
-                $sub->{name}      = $section_tag;
+                $sub->{name}      = $sec_tag;
                 $sub->{value}     = $sec_val;
                 $sub->{to_string} = $sec_name;
                 return $sub;
@@ -583,9 +590,9 @@ sub section
 sub write_directive
 {
     # this methode is made for easy directive writing's overload
-    my $self  = shift;
-    my $name  = shift;
-    my $value = shift;
+    my($self, $name, $value) = @_;
+    return undef unless defined $name;
+    $value = defined $value ? $value : '';
     return("$name $value");
 }
 
@@ -657,10 +664,11 @@ sub add_directive
     }
     else
     {
-        $insert_line = $type eq '-ontop' || $type eq '-after' ? $self->first_line : $self->last_line;
+        $insert_line = $type eq '-ontop' || $type eq '-after' ? $self->first_line : $self->last_line + 1;
     }
 
-    $self->_insert($insert_line, $self->write_directive($directive, $value));
+    $self->_insert_line($insert_line, $self->write_directive($directive, $value));
+    _insert_directive($self->_root, $directive, $value, [$insert_line == 0 ? $insert_line : $insert_line-1]);
 
     return($self->directive($directive, $value));
 }
@@ -792,7 +800,7 @@ sub directive
                         
                     $directive_values[$n] = $sub;
                 }
-                return(wantarray ? @directive_values : \@directive_values); 
+                return(wantarray ? @directive_values : ($self->{oldapi} ? \@directive_values : @directive_values)); 
                                                        # ascendant compatibility 
             }
             else
@@ -824,45 +832,45 @@ sub directive
             # called like this: $obj->directive
 
             my @directives;
-#             foreach(@{$root->{_sorted_directives}})
-            for(my $n = $#{$root->{_sorted_directives}}; $n >= 0; $n--)
+            foreach(_get_directives($root))
             {
-                my $d = $root->{_sorted_directives}->[$n];
-                my $directive  = $d->[0];
-                my $this_which = $d->[2];
-                $sub = bless({});
-                $sub->{level}     = sprintf(q(%s->{'%s'}->[%d]), $self->{level}, $directive, $this_which);
-                $sub->{top}       = $self->{top};
-                $sub->{parent}    = $self;
-                $sub->{type}      = 'directive';
-                $sub->{name}      = $directive;
-                $sub->{value}     = $d->[1]->[0];
-                $sub->{to_string} = _untype($sub->{name}, 'directive');
-
-                # with new api, we have to return the last element in scalar context like normal
-                # list in scalar context. So we don't bless all unwanted objects instances.
-                return $sub if(!$self->{oldapi} && !wantarray);
-
-                $directives[$n] = $sub;
-            }
-            return(wantarray ? @directives : \@directives);
-        }
-        else
-        {
-            # called like this: $obj->directive(-which=>n)
-            #return(defined $root->{_sorted_directives}->[$which] ? $root->{_sorted_directives}->[$which]->[0] : undef); # TODO return an object...
-
-            if(defined $root->{_sorted_directives}->[$which])
-            {
-                my $directive  = $root->{_sorted_directives}->[$which]->[0];
-                my $this_which = $root->{_sorted_directives}->[$which]->[2];
+                my $directive  = $_->[0];
+                my $value      = $_->[1];
+                my $this_which = $_->[3];
                 my $sub = bless({});
                 $sub->{level}     = sprintf(q(%s->{'%s'}->[%d]), $self->{level}, $directive, $this_which);
                 $sub->{top}       = $self->{top};
                 $sub->{parent}    = $self;
                 $sub->{type}      = 'directive';
                 $sub->{name}      = $directive;
-                $sub->{value}     = $root->{_sorted_directives}->[$which]->[1]->[0];
+                $sub->{value}     = $value;
+                $sub->{to_string} = _untype($sub->{name}, 'directive');
+
+                # with new api, we have to return the last element in scalar context like normal
+                # list in scalar context. So we don't bless all unwanted objects instances.
+                return $sub if(!$self->{oldapi} && !wantarray);
+
+                push(@directives, $sub);
+            }
+            return(wantarray ? @directives : ($self->{oldapi} ? \@directives : @directives));
+        }
+        else
+        {
+            # called like this: $obj->directive(-which=>n)
+
+            my @directives = _get_directives($root);
+            if(defined $directives[$which])
+            {
+                my $directive  = $directives[$which]->[0];
+                my $value      = $directives[$which]->[1];
+                my $this_which = $directives[$which]->[3];
+                my $sub = bless({});
+                $sub->{level}     = sprintf(q(%s->{'%s'}->[%d]), $self->{level}, $directive, $this_which);
+                $sub->{top}       = $self->{top};
+                $sub->{parent}    = $self;
+                $sub->{type}      = 'directive';
+                $sub->{name}      = $directive;
+                $sub->{value}     = $value;
                 $sub->{to_string} = _untype($sub->{name}, 'directive');
 
                 return $sub;
@@ -901,7 +909,7 @@ sub delete
             my $offset = $lines->[$i]->[0]; # first section opener tag's line (for trucated line) 
             my $length = $lines->[++$i]->[-1] - $offset + 1; # last section closer tag's line (for trucated line)
             $offset -= $deleted;
-            splice(@{$top->{contents_raw}}, $offset, $length);
+            $self->_delete_line($offset+1, $length);
             $deleted += $length;
         }
     }
@@ -909,7 +917,7 @@ sub delete
     {
         my $offset = $root->[1]->[0];
         my $length = $root->[1]->[-1] - $offset + 1;
-        splice(@{$top->{contents_raw}}, $offset, $length);
+        $self->_delete_line($offset+1, $length);
         $deleted = $length;
     }
     else
@@ -917,8 +925,6 @@ sub delete
         return($self->_set_error('method not allowed'));
     }
 
-    $self->_parse;
-    undef($_[0]);
     return($deleted);
 }
 
@@ -951,30 +957,24 @@ sub value
     
     if($type eq 'section')
     {
-        my $lines   = $root->{_pos};
-        my $trunc   = 0;
-        for(my $i = 0; $i < @$lines; $i++)
-        {
-            my $offset = $lines->[$i]->[0]; # first section opener tag's line 
-            my $length = $lines->[$i++]->[-1] - $offset + 1; # last section section opener tag's line (often the same as first)
-            # if the line was truncated, we replace it by a single line
-            $offset -= $trunc;
-            splice(@{$top->{contents_raw}}, $offset, $length, $self->write_section($self->name, $newvalue));
-            $trunc += $lenfth - 1; # if line taken more than one line, keep trace of remainder
-        }
+        my $offset = $root->{_pos}->[0]->[0];
+        my $length = $root->{_pos}->[0]->[-1] - $offset + 1;
+        print "lkjdsflkj $offset\n";
+        splice(@{$top->{contents_raw}}, $offset, $length, $self->write_section($self->name, $newvalue));
+        $self->_refresh_pos($offset + 1, $length - 1) if($length > 1);
     }
     elsif($type eq 'directive')
     {
         my $offset = $root->[1]->[0];
         my $length = $root->[1]->[-1] - $offset + 1;
         splice(@{$top->{contents_raw}}, $offset, $length, $self->write_directive($self->name, $newvalue));
+        $self->_refresh_pos($offset + 1, $length - 1) if($length > 1);
     }
     else
     {
         return($self->_set_error('method not allowed'));
     }
 
-    $self->_parse;
     return($newvalue);
 }
 
@@ -1119,7 +1119,7 @@ sub last_line
 
     if($type eq 'top')
     {
-        return(scalar(@{$self->{top}->{contents_raw}})+1); # first line of file is always 1
+        return(scalar(@{$self->{top}->{contents_raw}})); # first line of file is always 1
     }
     elsif($type eq 'directive')
     {
@@ -1173,7 +1173,7 @@ sub isin
     my $self     = shift;
     my $recursif = _get_arg(\@_, '-recursif!');
     my $target   = shift || return $self->_set_error('too few arguments');
-    return($self->_set_error('method not allowed')) if($type eq 'top');
+    return($self->_set_error('method not allowed')) if($self->type eq 'top');
     return($self->_set_error('target is not an object of myself')) unless(ref $target && $target->isa(Apache::Admin::Config));
     return($self->_set_error('wrong type for target')) if($target->type eq 'directive');
 
@@ -1294,15 +1294,152 @@ sub _untype
     }
 }
 
-sub _insert
+sub _delete_line
+{
+    my($self, $line, $howmany) = @_;
+    return $self->_set_error('bad line number')
+        unless($line !~ /[^\d\-]/);
+    my $index = ($line > 0 ? $line - 1 : $line);
+    splice(@{$self->{top}->{contents_raw}}, $index, $howmany);
+    $self->_refresh_pos($index, $howmany*-1);
+}
+
+sub _insert_line
 {
     # insert a new line in the file, and reparse it
-    # syntax: $self->_insert(line_number, rule1, rule2, rule3...)
+    # syntax: $self->_insert_line(line_number, rule1, rule2, rule3...)
     my $self  = shift;
     my $line  = $_[0] !~ /[^\d\-]/ ? shift : return $self->_set_error('bad line number');
 
-    splice(@{$self->{top}->{contents_raw}}, ($line > 0 ? $line - 1 : $line), 0, @_);
-    $self->_parse;
+    my $index = ($line > 0 ? $line - 1 : $line);
+    splice(@{$self->{top}->{contents_raw}}, $index, 0, @_);
+
+    $self->_refresh_pos($index, scalar @_)
+}
+
+sub _refresh_pos
+{
+    my($self, $index, $count, $tree) = @_;
+    $tree = $self->{top}->{contents_parsed}
+        unless defined $tree;
+
+    foreach(keys %$tree)
+    {
+        if(index($_, 'D') == 0)
+        {
+            foreach my $ary (@{$tree->{$_}})
+            {
+                foreach(@{$ary->[1]})
+                {
+                    $_ += $count if($_ >= $index);
+                }
+            }
+        }
+        elsif(index($_, 'S') == 0)
+        {
+            $self->_refresh_pos($index, $count, $tree->{$_});
+        }
+        elsif($_ eq '_pos')
+        {
+            foreach $ary (@{$tree->{$_}})
+            {
+                foreach(@$ary)
+                {
+                    $_ += $count if($_ >= $index);
+                }
+            }
+        }
+    }
+}
+
+sub _insert_directive
+{
+    my($tree, $directive, $value, $pos) = @_;
+
+    # we add a D in front of directive for isolate it from sections
+    $directive = _type(lc($directive), 'directive');
+    $value = defined $value ? $value : '';
+    $value =~ s/^\s+|\s+$//g;
+
+    push(@{$tree->{$directive}}, [$value, $pos]); #[value, line's position]
+}
+
+sub _insert_section
+{
+    my($tree, $section, $value, $pos) = @_;
+
+    # increment the section counter of same name on same level, used for
+    # select which homonyme section we talk about
+    my $which = ++$tree->{_sections_counter}->{$section};
+    # we add an S in front of section for isolate it from directives 
+    # (followed by the section counter for isolate same named sections)
+    $value = defined $value ? $value : '';
+    $value =~ s/^\s+|\s+$//g;
+    $section = _type(lc($section), 'section', $value, $which);
+
+    $tree->{$section} ||= {};
+    # save the line number of this section
+    push(@{$tree->{$section}->{_pos}}, $pos);
+    return $tree->{$section};
+}
+
+sub _insert_section_closer
+{
+    my($tree, $pos) = @_;
+    push(@{$tree->{_pos}}, $pos); # save last line of section
+}
+
+# this function returns an array of arrayref. each arrayref contents
+# 0 = typed directive name (with the D: identifier on front)
+# 1 = value
+# 2 = arrayref off lines position
+# 3 = index of same name directives
+sub _get_directives
+{
+    my($tree) = @_;
+    
+    my @directives;
+    foreach(keys %$tree)
+    {
+        if(index($_, 'D') == 0)
+        {
+            my $directive = $_;
+            my $which = 0;
+            foreach(@{$tree->{$_}})
+            {
+                push(@directives, [$directive, @$_, $which++]);
+            }
+        }
+    }
+    return sort {$a->[2]->[0] <=> $b->[2]->[0]} @directives;
+}
+
+sub _get_sections
+{
+    my($tree) = @_;
+
+    my @sections;
+    foreach(keys %$tree)
+    {
+        if(index($_, 'S') == 0)
+        {
+            my $section = $_;
+            my $secname = _untype($section, 'section');
+            my $value = (split(/=/, $section, 2))[1];
+            push(@sections, [$section, $value, $tree->{$section}->{_pos}, $secname]);
+        }
+    }
+
+    my %same;
+
+    # sorting section on first line number of section openner and feed the 3th element
+    # of array: the same section named index
+    @sections = sort {$a->[2]->[0]->[0] <=> $b->[2]->[0]->[0]} @sections;
+    foreach(@sections)
+    {
+        $_->[3] = $same{$_->[3]}++ || 0;
+    }
+    return @sections;
 }
 
 sub _parse
@@ -1333,56 +1470,23 @@ sub _parse
         if($line =~ /^(\w+)\s*(.*)$/)
         {
             # it's a directive
-            my $directive = _type(lc($1), 'directive'); # we add a D in front of directive for isolate it from sections
-            my $value = defined $2 ? $2 : '';
-            $value =~ s/^\s*|\s*$//g;
-            # directive exists but is not a directive !
-            return $self->_set_error(sprintf('%s: syntax error at line %d', $file, $n+1))
-              if(defined $level[-1]->{$directive} && ref($level[-1]->{$directive}) ne 'ARRAY');
-            push(@{$level[-1]->{$directive}}, [$value, \@_pos]); #[value, line's position]
-
-            # keep apparence's order of directives
-            # 0=>directive name 1=>ref to directive 2=>index of directive in directive name array
-            push(@{$level[-1]->{_sorted_directives}}, [$directive, $level[-1]->{$directive}->[-1], $#{$level[-1]->{$directive}}]); 
+            _insert_directive($level[-1], $1, $2, \@_pos);
         }
         elsif($line =~ /^<\s*(\w+)(?:\s+([^>]+)|\s*)>$/)
         {
             # it's a section opening
             my $section_name = lc $1;
-            my $current_level = $level[-1];
-            # increment the section counter of same name on same level, used for
-            # select which homonyme section we talk about
-            my $which = ++$current_level->{_sections_counter}->{$section_name};
-            # we add an S in front of section for isolate it from directives 
-            # (followed by the section counter for isolate same named sections)
-            my $value = defined $2 ? $2 : '';
-            $value =~ s/^\s*|\s*$//g;
-            my $section_tag = _type($section_name, 'section', $value, $which);
-
-            push(@level, $current_level->{$section_tag} ||= {});
-            # not same as $current_level !
-            my $current_section_level = $level[-1];
-            # save the line number of this section
-            push(@{$current_section_level->{_pos}}, \@_pos);
+            my $section = _insert_section($level[-1], $section_name, $2, \@_pos);
+            push(@level, $section);
             push(@last_section, $section_name);
-
-            # keep apparence's order of sections
-            push
-            (
-                @{$current_level->{_sorted_sections}},
-                [$section_name, $value, $which]
-            );
         }
         elsif($line =~ /^<\/\s*(\w+)\s*>$/)
         {
             # it's a section closing
             my $section_name = lc $1;
-            my $current_section_level = $level[-1];
-            # we add an S in front of section for isolate it from directives
-            # (followed by the section counter for isolate same named sections)
             return $self->_set_error(sprintf('%s: syntax error at line %d', $file, $n+1)) 
               if(!@last_section || $section_name ne $last_section[-1]);
-            push(@{$current_section_level->{_pos}}, \@_pos); # save last line of section
+            _insert_section_closer($level[-1], \@_pos);
             pop(@last_section);
             pop(@level);
         }
@@ -1413,7 +1517,7 @@ sub _get_arg
         foreach my $name (split(/\|/, $motif))
         {
             my $boolean = ($name =~ s/\!$//);
-            if(defined $args->[$n] && $args->[$n] eq $name)
+            if(defined $args->[$n] && !ref($args->[$n]) && $args->[$n] eq $name)
             {
                 return(undef) if(!$boolean && $n+1 >= @$args); # malformed argument
                 my $value = splice(@$args, $n, ($boolean?1:2));

@@ -1,5 +1,9 @@
 Revision history for Perl extension Apache::Admin::Config.
 
+0.20 Mon Jun  3 11:03:05 2002
+        - Many major bugfix
+        - Algorithm rewriten, it's 65 times faster !
+
 0.16 Thu Apr 11 16:44:53 2002
         - Major bugfix: no longer merging namespace of identical 
           sections (same name/value)

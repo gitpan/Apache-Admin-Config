@@ -1,4 +1,4 @@
-Apache::Admin::Config 0.16
+Apache::Admin::Config 0.20
 ==========================
 
 INSTALLATION
@@ -15,6 +15,10 @@ UPGRADING FROM PREVIOUS VERSIONS
 * Upgrading from version 0.08 or earlier: read UPGRADE-0.10
 
 CHANGES
+
+0.20 Mon Jun  3 11:03:05 2002
+        - Many major bugfix
+        - Algorithm rewriten, it's 65 times faster !
 
 0.16 Thu Apr 11 16:44:53 2002
         - Major bugfix: no longer merging namespace of identical 
@@ -117,7 +121,6 @@ CHANGES
 
 0.01  Sun Aug 12 11:58:10 2001
 	- Original version; created by h2xs 1.21 with options -AX -n Apache::Admin
-
 NAME
     Apache::Admin::Config - A common module to manipulate Apache
     configuration files
