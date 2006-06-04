@@ -4,7 +4,7 @@ use 5.005;
 use strict;
 use FileHandle;
 
-$Apache::Admin::Config::VERSION = '0.92';
+$Apache::Admin::Config::VERSION = '0.93';
 $Apache::Admin::Config::DEBUG   = 0;
 
 =pod
@@ -312,8 +312,8 @@ sub dump_reformat
             {
                 $name = $_->{length};
             }
-
-            $string .= $self->$method($name||'', $_->value||'');
+            my $value = defined $_->value ? $_->value : '';
+            $string .= $self->$method($name||'', $value);
         }
     }
 

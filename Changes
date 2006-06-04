@@ -1,3 +1,11 @@
+2006-04-11 Daniel Muey <dmuey@cpan.org>
+
+        * Release 0.93
+
+	* Fixed bug 18792 (http://rt.cpan.org/Public/Bug/Display.html?id=18792)
+
+	* Updated version in README from 0.91 to 0.93
+
 2004-12-08  Olivier Poitrey  <rs@rhapsodyk.net>
 
 	* Release 0.92
